@@ -1,109 +1,111 @@
 """Unit tests for import and basic module structure (no server required)."""
 
-import aerospike
-from aerospike import exception
+import aerospike_py
+from aerospike_py import exception
 
 
 def test_import():
-    """Test that aerospike module can be imported."""
-    assert hasattr(aerospike, "__version__")
-    assert aerospike.__version__ == "0.1.0"
+    """Test that aerospike_py module can be imported."""
+    assert hasattr(aerospike_py, "__version__")
+    # Version is now dynamic via importlib.metadata
+    assert isinstance(aerospike_py.__version__, str)
+    assert len(aerospike_py.__version__) > 0
 
 
 def test_client_factory():
-    """Test that aerospike.client() creates a Client."""
-    c = aerospike.client({"hosts": [("127.0.0.1", 3000)]})
-    assert isinstance(c, aerospike.Client)
+    """Test that aerospike_py.client() creates a Client."""
+    c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)]})
+    assert isinstance(c, aerospike_py.Client)
     assert not c.is_connected()
 
 
 def test_client_not_connected_raises():
     """Test that calling methods on unconnected client raises ClientError."""
-    c = aerospike.client({"hosts": [("127.0.0.1", 3000)]})
+    c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)]})
     try:
         c.get(("test", "demo", "key1"))
         assert False, "Should have raised ClientError"
-    except aerospike.ClientError:
+    except aerospike_py.ClientError:
         pass
 
 
 def test_constants():
     """Test that all key constants are defined."""
     # Policy Key
-    assert aerospike.POLICY_KEY_DIGEST == 0
-    assert aerospike.POLICY_KEY_SEND == 1
+    assert aerospike_py.POLICY_KEY_DIGEST == 0
+    assert aerospike_py.POLICY_KEY_SEND == 1
 
     # Policy Exists
-    assert aerospike.POLICY_EXISTS_IGNORE == 0
-    assert aerospike.POLICY_EXISTS_UPDATE == 1
-    assert aerospike.POLICY_EXISTS_UPDATE_ONLY == 1
-    assert aerospike.POLICY_EXISTS_REPLACE == 2
-    assert aerospike.POLICY_EXISTS_REPLACE_ONLY == 3
-    assert aerospike.POLICY_EXISTS_CREATE_ONLY == 4
+    assert aerospike_py.POLICY_EXISTS_IGNORE == 0
+    assert aerospike_py.POLICY_EXISTS_UPDATE == 1
+    assert aerospike_py.POLICY_EXISTS_UPDATE_ONLY == 1
+    assert aerospike_py.POLICY_EXISTS_REPLACE == 2
+    assert aerospike_py.POLICY_EXISTS_REPLACE_ONLY == 3
+    assert aerospike_py.POLICY_EXISTS_CREATE_ONLY == 4
 
     # Policy Gen
-    assert aerospike.POLICY_GEN_IGNORE == 0
-    assert aerospike.POLICY_GEN_EQ == 1
-    assert aerospike.POLICY_GEN_GT == 2
+    assert aerospike_py.POLICY_GEN_IGNORE == 0
+    assert aerospike_py.POLICY_GEN_EQ == 1
+    assert aerospike_py.POLICY_GEN_GT == 2
 
     # TTL
-    assert aerospike.TTL_NAMESPACE_DEFAULT == 0
-    assert aerospike.TTL_NEVER_EXPIRE == -1
-    assert aerospike.TTL_DONT_UPDATE == -2
+    assert aerospike_py.TTL_NAMESPACE_DEFAULT == 0
+    assert aerospike_py.TTL_NEVER_EXPIRE == -1
+    assert aerospike_py.TTL_DONT_UPDATE == -2
 
     # Operators
-    assert aerospike.OPERATOR_READ == 1
-    assert aerospike.OPERATOR_WRITE == 2
-    assert aerospike.OPERATOR_INCR == 5
-    assert aerospike.OPERATOR_APPEND == 9
-    assert aerospike.OPERATOR_PREPEND == 10
-    assert aerospike.OPERATOR_TOUCH == 11
-    assert aerospike.OPERATOR_DELETE == 12
+    assert aerospike_py.OPERATOR_READ == 1
+    assert aerospike_py.OPERATOR_WRITE == 2
+    assert aerospike_py.OPERATOR_INCR == 5
+    assert aerospike_py.OPERATOR_APPEND == 9
+    assert aerospike_py.OPERATOR_PREPEND == 10
+    assert aerospike_py.OPERATOR_TOUCH == 11
+    assert aerospike_py.OPERATOR_DELETE == 12
 
     # Status codes
-    assert aerospike.AEROSPIKE_OK == 0
-    assert aerospike.AEROSPIKE_ERR_RECORD_NOT_FOUND == 2
-    assert aerospike.AEROSPIKE_ERR_RECORD_EXISTS == 5
-    assert aerospike.AEROSPIKE_ERR_TIMEOUT == 9
+    assert aerospike_py.AEROSPIKE_OK == 0
+    assert aerospike_py.AEROSPIKE_ERR_RECORD_NOT_FOUND == 2
+    assert aerospike_py.AEROSPIKE_ERR_RECORD_EXISTS == 5
+    assert aerospike_py.AEROSPIKE_ERR_TIMEOUT == 9
 
 
 def test_exception_hierarchy():
     """Test that exception classes follow proper hierarchy."""
-    assert issubclass(aerospike.ClientError, aerospike.AerospikeError)
-    assert issubclass(aerospike.ServerError, aerospike.AerospikeError)
-    assert issubclass(aerospike.RecordError, aerospike.AerospikeError)
-    assert issubclass(aerospike.ClusterError, aerospike.AerospikeError)
-    assert issubclass(aerospike.TimeoutError, aerospike.AerospikeError)
-    assert issubclass(aerospike.InvalidArgError, aerospike.AerospikeError)
+    assert issubclass(aerospike_py.ClientError, aerospike_py.AerospikeError)
+    assert issubclass(aerospike_py.ServerError, aerospike_py.AerospikeError)
+    assert issubclass(aerospike_py.RecordError, aerospike_py.AerospikeError)
+    assert issubclass(aerospike_py.ClusterError, aerospike_py.AerospikeError)
+    assert issubclass(aerospike_py.TimeoutError, aerospike_py.AerospikeError)
+    assert issubclass(aerospike_py.InvalidArgError, aerospike_py.AerospikeError)
 
     # Record-level subclasses
-    assert issubclass(aerospike.RecordNotFound, aerospike.RecordError)
-    assert issubclass(aerospike.RecordExistsError, aerospike.RecordError)
-    assert issubclass(aerospike.RecordGenerationError, aerospike.RecordError)
-    assert issubclass(aerospike.RecordTooBig, aerospike.RecordError)
-    assert issubclass(aerospike.BinNameError, aerospike.RecordError)
-    assert issubclass(aerospike.BinExistsError, aerospike.RecordError)
-    assert issubclass(aerospike.BinNotFound, aerospike.RecordError)
-    assert issubclass(aerospike.BinTypeError, aerospike.RecordError)
-    assert issubclass(aerospike.FilteredOut, aerospike.RecordError)
+    assert issubclass(aerospike_py.RecordNotFound, aerospike_py.RecordError)
+    assert issubclass(aerospike_py.RecordExistsError, aerospike_py.RecordError)
+    assert issubclass(aerospike_py.RecordGenerationError, aerospike_py.RecordError)
+    assert issubclass(aerospike_py.RecordTooBig, aerospike_py.RecordError)
+    assert issubclass(aerospike_py.BinNameError, aerospike_py.RecordError)
+    assert issubclass(aerospike_py.BinExistsError, aerospike_py.RecordError)
+    assert issubclass(aerospike_py.BinNotFound, aerospike_py.RecordError)
+    assert issubclass(aerospike_py.BinTypeError, aerospike_py.RecordError)
+    assert issubclass(aerospike_py.FilteredOut, aerospike_py.RecordError)
 
     # Same classes accessible from exception module
-    assert issubclass(exception.RecordNotFound, aerospike.RecordError)
-    assert issubclass(exception.RecordExistsError, aerospike.RecordError)
-    assert issubclass(exception.BinNameError, aerospike.RecordError)
+    assert issubclass(exception.RecordNotFound, aerospike_py.RecordError)
+    assert issubclass(exception.RecordExistsError, aerospike_py.RecordError)
+    assert issubclass(exception.BinNameError, aerospike_py.RecordError)
     assert issubclass(exception.IndexNotFound, exception.IndexError)
     assert issubclass(exception.QueryAbortedError, exception.QueryError)
-    assert issubclass(exception.AdminError, aerospike.ServerError)
-    assert issubclass(exception.UDFError, aerospike.ServerError)
+    assert issubclass(exception.AdminError, aerospike_py.ServerError)
+    assert issubclass(exception.UDFError, aerospike_py.ServerError)
 
     # Verify exception module classes are the same objects as aerospike module classes
-    assert exception.RecordNotFound is aerospike.RecordNotFound
-    assert exception.IndexNotFound is aerospike.IndexNotFound
+    assert exception.RecordNotFound is aerospike_py.RecordNotFound
+    assert exception.IndexNotFound is aerospike_py.IndexNotFound
 
 
 def test_client_not_connected_operations():
     """Test that various methods on unconnected client raise ClientError."""
-    c = aerospike.client({"hosts": [("127.0.0.1", 3000)]})
+    c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)]})
     key = ("test", "demo", "key1")
 
     for method, args in [
@@ -119,15 +121,15 @@ def test_client_not_connected_operations():
         try:
             getattr(c, method)(*args)
             assert False, f"{method}() should have raised ClientError"
-        except aerospike.ClientError:
+        except aerospike_py.ClientError:
             pass
 
 
 def test_connect_username_without_password():
     """Test that connect() with username but no password raises ClientError."""
-    c = aerospike.client({"hosts": [("127.0.0.1", 3000)]})
+    c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)]})
     try:
         c.connect(username="admin")
         assert False, "Should have raised ClientError"
-    except aerospike.ClientError:
+    except aerospike_py.ClientError:
         pass

@@ -7,7 +7,7 @@ Queries require a secondary index on the bin being queried.
 ### Step 1: Create a Secondary Index
 
 ```python
-import aerospike
+import aerospike_py as aerospike
 
 client = aerospike.client({
     "hosts": [("127.0.0.1", 3000)],
@@ -38,7 +38,7 @@ for i in range(100):
 ### Step 3: Query with Predicates
 
 ```python
-from aerospike import predicates
+from aerospike_py import predicates
 
 # Equality query
 query = client.query("test", "users")
@@ -140,7 +140,7 @@ print(f"Average age: {total_age / count:.1f}")
 
 ```python
 import asyncio
-from aerospike import AsyncClient
+from aerospike_py import AsyncClient
 
 async def main():
     client = AsyncClient({

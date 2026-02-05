@@ -3,7 +3,7 @@
 All constants are available directly from the `aerospike` module.
 
 ```python
-import aerospike
+import aerospike_py as aerospike
 print(aerospike.POLICY_KEY_SEND)
 ```
 

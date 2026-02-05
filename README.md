@@ -50,7 +50,7 @@ docker run -d --name aerospike \
 ### Basic Usage (Sync)
 
 ```python
-import aerospike
+import aerospike_py as aerospike
 
 # Connect
 client = aerospike.client({
@@ -107,7 +107,7 @@ client.close()
 
 ```python
 import asyncio
-from aerospike import AsyncClient
+from aerospike_py import AsyncClient
 
 async def main():
     client = AsyncClient({
@@ -236,7 +236,7 @@ pip install maturin pytest pytest-asyncio
 maturin develop
 
 # Verify
-python -c "import aerospike; print(aerospike.__version__)"
+python -c "import aerospike_py as aerospike; print(aerospike.__version__)"
 ```
 
 ### Project Structure
@@ -258,7 +258,7 @@ aerospike-py/
 │       ├── runtime.rs      # Global Tokio runtime
 │       ├── types/          # Key, Value, Record, Bin, Host converters
 │       └── policy/         # Policy dict → Rust struct parsers
-├── src/aerospike/
+├── src/aerospike_py/
 │   ├── __init__.py         # Python package, re-exports, Client wrapper
 │   ├── __init__.pyi        # Type stubs
 │   ├── exception.py        # Exception hierarchy re-exports
@@ -316,7 +316,7 @@ pytest tests/ -v -s
 ### Making Changes
 
 1. **Rust code** (`rust/src/`): Edit, then `maturin develop` to rebuild.
-2. **Python code** (`src/aerospike/`): Changes apply immediately (no rebuild needed).
+2. **Python code** (`src/aerospike_py/`): Changes apply immediately (no rebuild needed).
 3. **Tests**: Add to `tests/unit/` or `tests/integration/` as appropriate.
 
 ### Architecture Notes

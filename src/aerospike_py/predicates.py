@@ -1,8 +1,8 @@
 """Predicate helpers for secondary index queries.
 
 Usage:
-    import aerospike
-    from aerospike import predicates as p
+    import aerospike_py
+    from aerospike_py import predicates as p
 
     query = client.query("test", "demo")
     query.where(p.equals("age", 30))

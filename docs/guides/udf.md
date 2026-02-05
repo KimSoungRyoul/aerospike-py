@@ -69,7 +69,7 @@ client.udf_remove("counter")
 
 ```python
 import asyncio
-from aerospike import AsyncClient
+from aerospike_py import AsyncClient
 
 async def main():
     client = AsyncClient({

@@ -2,14 +2,14 @@
 
 import pytest
 
-import aerospike
+import aerospike_py
 
 
 @pytest.fixture(scope="module")
 def client():
     """Create and connect a client for the test module."""
     try:
-        c = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c
@@ -44,7 +44,7 @@ class TestPutGet:
         key = ("test", "demo", "test_key_send")
         cleanup.append(key)
 
-        client.put(key, {"val": 1}, policy={"key": aerospike.POLICY_KEY_SEND})
+        client.put(key, {"val": 1}, policy={"key": aerospike_py.POLICY_KEY_SEND})
         key_tuple, meta, bins = client.get(key)
 
         assert bins["val"] == 1
@@ -196,8 +196,8 @@ class TestOperate:
         client.put(key, {"counter": 10, "name": "test"})
 
         ops = [
-            {"op": aerospike.OPERATOR_INCR, "bin": "counter", "val": 5},
-            {"op": aerospike.OPERATOR_READ, "bin": "counter", "val": None},
+            {"op": aerospike_py.OPERATOR_INCR, "bin": "counter", "val": 5},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "counter", "val": None},
         ]
         _, _, bins = client.operate(key, ops)
         assert bins["counter"] == 15
@@ -208,7 +208,7 @@ class TestOperate:
 
         client.put(key, {"val": 1})
         ops = [
-            {"op": aerospike.OPERATOR_READ, "bin": "val", "val": None},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "val", "val": None},
         ]
         _, meta, ordered = client.operate_ordered(key, ops)
         assert isinstance(ordered, list)

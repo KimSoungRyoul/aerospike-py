@@ -47,7 +47,7 @@ client.admin_drop_user("alice")
 ### Create a Role
 
 ```python
-import aerospike
+import aerospike_py as aerospike
 
 # Role with specific namespace/set privileges
 client.admin_create_role("data_reader", [

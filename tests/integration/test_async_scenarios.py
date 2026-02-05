@@ -3,8 +3,8 @@
 import asyncio
 import pytest
 
-import aerospike
-from aerospike import AsyncClient
+import aerospike_py
+from aerospike_py import AsyncClient
 
 
 def _run(coro):
@@ -82,9 +82,9 @@ class TestAsyncCRUDWorkflow:
             try:
                 await c.put(key, {"a": 10, "b": "hello"})
                 ops = [
-                    {"op": aerospike.OPERATOR_INCR, "bin": "a", "val": 5},
-                    {"op": aerospike.OPERATOR_READ, "bin": "a", "val": None},
-                    {"op": aerospike.OPERATOR_READ, "bin": "b", "val": None},
+                    {"op": aerospike_py.OPERATOR_INCR, "bin": "a", "val": 5},
+                    {"op": aerospike_py.OPERATOR_READ, "bin": "a", "val": None},
+                    {"op": aerospike_py.OPERATOR_READ, "bin": "b", "val": None},
                 ]
                 _, _, bins = await c.operate(key, ops)
                 assert bins["a"] == 15
@@ -208,7 +208,7 @@ class TestAsyncErrorHandling:
         async def _test():
             c = await _make_client()
             try:
-                with pytest.raises(aerospike.RecordNotFound):
+                with pytest.raises(aerospike_py.RecordNotFound):
                     await c.get(("test", "async_scen", "nonexistent_xyz"))
             finally:
                 await c.close()
@@ -227,7 +227,7 @@ class TestAsyncErrorHandling:
         async def _test():
             c = await _make_client()
             await c.close()
-            with pytest.raises(aerospike.AerospikeError):
+            with pytest.raises(aerospike_py.AerospikeError):
                 await c.get(("test", "demo", "key"))
 
         _run(_test())
@@ -235,7 +235,7 @@ class TestAsyncErrorHandling:
     def test_connect_bad_host(self):
         async def _test():
             c = AsyncClient({"hosts": [("192.0.2.1", 9999)]})
-            with pytest.raises(aerospike.AerospikeError):
+            with pytest.raises(aerospike_py.AerospikeError):
                 await c.connect()
 
         _run(_test())
@@ -311,7 +311,7 @@ class TestAsyncUDF:
 
                 result = await c.apply(key, "test_udf", "get_bin", ["val"])
                 assert result == 42
-            except aerospike.AerospikeError as e:
+            except aerospike_py.AerospikeError as e:
                 if "udf" in str(e).lower():
                     pytest.skip("UDF not available")
                 raise

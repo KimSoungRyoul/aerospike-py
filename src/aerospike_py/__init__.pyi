@@ -1,9 +1,9 @@
-"""Type stubs for the aerospike package."""
+"""Type stubs for the aerospike_py package."""
 
 from typing import Any, Callable, Optional, Union
 
-from aerospike import exception as exception
-from aerospike import predicates as predicates
+from aerospike_py import exception as exception
+from aerospike_py import predicates as predicates
 
 __version__: str
 

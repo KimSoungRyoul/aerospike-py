@@ -3,13 +3,13 @@
 import pytest
 import time
 
-import aerospike
+import aerospike_py
 
 
 @pytest.fixture(scope="module")
 def client():
     try:
-        c = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c
@@ -107,10 +107,10 @@ class TestCRUDWorkflow:
 
         # Atomically increment and read
         ops = [
-            {"op": aerospike.OPERATOR_INCR, "bin": "views", "val": 1},
-            {"op": aerospike.OPERATOR_INCR, "bin": "views", "val": 1},
-            {"op": aerospike.OPERATOR_READ, "bin": "views", "val": None},
-            {"op": aerospike.OPERATOR_READ, "bin": "name", "val": None},
+            {"op": aerospike_py.OPERATOR_INCR, "bin": "views", "val": 1},
+            {"op": aerospike_py.OPERATOR_INCR, "bin": "views", "val": 1},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "views", "val": None},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "name", "val": None},
         ]
         _, _, bins = client.operate(key, ops)
         assert bins["views"] == 2
@@ -168,7 +168,7 @@ class TestBatchWorkflow:
             client.put(k, {"counter": 10})
 
         ops = [
-            {"op": aerospike.OPERATOR_INCR, "bin": "counter", "val": 5},
+            {"op": aerospike_py.OPERATOR_INCR, "bin": "counter", "val": 5},
         ]
         client.batch_operate(keys, ops)
 
@@ -205,7 +205,7 @@ class TestQueryScanWorkflow:
                 "id": i,
                 "category": "even" if i % 2 == 0 else "odd",
                 "value": i * 100,
-            }, policy={"key": aerospike.POLICY_KEY_SEND})
+            }, policy={"key": aerospike_py.POLICY_KEY_SEND})
             self.keys.append(key)
 
         yield
@@ -260,12 +260,12 @@ class TestQueryScanWorkflow:
         idx_name = "scenario_id_idx"
         try:
             client.index_integer_create(self.ns, self.set_name, "id", idx_name)
-        except aerospike.IndexFoundError:
+        except aerospike_py.IndexFoundError:
             pass  # already exists
 
         try:
             query = client.query(self.ns, self.set_name)
-            query.where(aerospike.predicates.between("id", 3, 7))
+            query.where(aerospike_py.predicates.between("id", 3, 7))
             results = query.results()
 
             ids = [bins["id"] for _, _, bins in results]
@@ -309,7 +309,7 @@ class TestTTLScenarios:
         key = ("test", "scenario", "ttl_never")
         cleanup.append(key)
 
-        client.put(key, {"val": 1}, meta={"ttl": aerospike.TTL_NEVER_EXPIRE})
+        client.put(key, {"val": 1}, meta={"ttl": aerospike_py.TTL_NEVER_EXPIRE})
         _, meta, _ = client.get(key)
         # TTL for never-expire is a very large number
         assert meta["ttl"] > 0
@@ -348,7 +348,7 @@ class TestGenerationPolicy:
             key,
             {"val": 2},
             meta={"gen": meta["gen"]},
-            policy={"gen": aerospike.POLICY_GEN_EQ},
+            policy={"gen": aerospike_py.POLICY_GEN_EQ},
         )
         _, meta2, bins = client.get(key)
         assert bins["val"] == 2
@@ -361,12 +361,12 @@ class TestGenerationPolicy:
         client.put(key, {"val": 1})
 
         # Write with wrong generation should raise
-        with pytest.raises(aerospike.RecordGenerationError):
+        with pytest.raises(aerospike_py.RecordGenerationError):
             client.put(
                 key,
                 {"val": 2},
                 meta={"gen": 999},
-                policy={"gen": aerospike.POLICY_GEN_EQ},
+                policy={"gen": aerospike_py.POLICY_GEN_EQ},
             )
 
         # Original value should be unchanged
@@ -390,16 +390,16 @@ class TestGenerationPolicy:
             key,
             {"balance": bins1["balance"] - 100},
             meta={"gen": meta1["gen"]},
-            policy={"gen": aerospike.POLICY_GEN_EQ},
+            policy={"gen": aerospike_py.POLICY_GEN_EQ},
         )
 
         # Reader 2 tries to write with stale gen - should fail
-        with pytest.raises(aerospike.RecordGenerationError):
+        with pytest.raises(aerospike_py.RecordGenerationError):
             client.put(
                 key,
                 {"balance": bins1["balance"] + 500},
                 meta={"gen": meta1["gen"]},  # stale!
-                policy={"gen": aerospike.POLICY_GEN_EQ},
+                policy={"gen": aerospike_py.POLICY_GEN_EQ},
             )
 
         # Balance should be 900, not 1500
@@ -415,7 +415,7 @@ class TestExistsPolicy:
         key = ("test", "scenario", "create_only_ok")
         cleanup.append(key)
 
-        client.put(key, {"val": 1}, policy={"exists": aerospike.POLICY_EXISTS_CREATE_ONLY})
+        client.put(key, {"val": 1}, policy={"exists": aerospike_py.POLICY_EXISTS_CREATE_ONLY})
         _, _, bins = client.get(key)
         assert bins["val"] == 1
 
@@ -426,8 +426,8 @@ class TestExistsPolicy:
 
         client.put(key, {"val": 1})
 
-        with pytest.raises(aerospike.RecordExistsError):
-            client.put(key, {"val": 2}, policy={"exists": aerospike.POLICY_EXISTS_CREATE_ONLY})
+        with pytest.raises(aerospike_py.RecordExistsError):
+            client.put(key, {"val": 2}, policy={"exists": aerospike_py.POLICY_EXISTS_CREATE_ONLY})
 
         # Value should remain unchanged
         _, _, bins = client.get(key)
@@ -439,7 +439,7 @@ class TestExistsPolicy:
         cleanup.append(key)
 
         client.put(key, {"val": 1})
-        client.put(key, {"val": 2}, policy={"exists": aerospike.POLICY_EXISTS_UPDATE})
+        client.put(key, {"val": 2}, policy={"exists": aerospike_py.POLICY_EXISTS_UPDATE})
         _, _, bins = client.get(key)
         assert bins["val"] == 2
 
@@ -447,8 +447,8 @@ class TestExistsPolicy:
         """UPDATE_ONLY should fail when record doesn't exist."""
         key = ("test", "scenario", "update_only_fail")
 
-        with pytest.raises(aerospike.AerospikeError):
-            client.put(key, {"val": 1}, policy={"exists": aerospike.POLICY_EXISTS_UPDATE})
+        with pytest.raises(aerospike_py.AerospikeError):
+            client.put(key, {"val": 1}, policy={"exists": aerospike_py.POLICY_EXISTS_UPDATE})
 
 
 class TestErrorHandling:
@@ -457,7 +457,7 @@ class TestErrorHandling:
     def test_get_nonexistent_record(self, client):
         """Getting a non-existent record should raise RecordNotFound."""
         key = ("test", "scenario", "nonexistent_key_xyz_12345")
-        with pytest.raises(aerospike.RecordNotFound):
+        with pytest.raises(aerospike_py.RecordNotFound):
             client.get(key)
 
     def test_remove_nonexistent_is_ok(self, client):
@@ -467,21 +467,21 @@ class TestErrorHandling:
         # (server returns ok for delete of non-existent key)
         try:
             client.remove(key)
-        except aerospike.RecordNotFound:
+        except aerospike_py.RecordNotFound:
             pass  # Some servers may raise this, which is also acceptable
 
     def test_invalid_namespace_raises(self, client):
         """Using an invalid namespace should raise an error."""
         key = ("nonexistent_namespace_xyz", "demo", "key1")
-        with pytest.raises(aerospike.AerospikeError):
+        with pytest.raises(aerospike_py.AerospikeError):
             client.put(key, {"val": 1})
 
     def test_operations_after_close(self, client):
         """Create a separate client, close it, then try operations."""
-        c2 = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c2 = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
         c2.close()
 
-        with pytest.raises(aerospike.AerospikeError):
+        with pytest.raises(aerospike_py.AerospikeError):
             c2.get(("test", "demo", "key1"))
 
     def test_empty_bins_put(self, client, cleanup):
@@ -491,19 +491,19 @@ class TestErrorHandling:
         # Empty dict put - should either succeed or raise cleanly
         try:
             client.put(key, {})
-        except aerospike.AerospikeError:
+        except aerospike_py.AerospikeError:
             pass  # acceptable to reject empty bins
 
     def test_double_close_is_safe(self, client):
         """Closing a client twice should not crash."""
-        c2 = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c2 = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
         c2.close()
         c2.close()  # Should not raise
 
     def test_connect_bad_host(self):
         """Connecting to a bad host should raise."""
-        c = aerospike.client({"hosts": [("192.0.2.1", 9999)]})
-        with pytest.raises(aerospike.AerospikeError):
+        c = aerospike_py.client({"hosts": [("192.0.2.1", 9999)]})
+        with pytest.raises(aerospike_py.AerospikeError):
             c.connect()
 
 
@@ -650,7 +650,7 @@ class TestMultiClientScenario:
 
     def test_two_clients_same_record(self, client, cleanup):
         """Two clients can read/write the same record."""
-        c2 = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c2 = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
         try:
             key = ("test", "scenario", "multi_client")
             cleanup.append(key)
@@ -667,7 +667,7 @@ class TestMultiClientScenario:
 
     def test_reconnect_after_close(self, cleanup):
         """Client can reconnect after close."""
-        c = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
         key = ("test", "scenario", "reconnect")
         cleanup.append(key)
 
@@ -675,7 +675,7 @@ class TestMultiClientScenario:
         c.close()
 
         # Reconnect
-        c = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
         try:
             _, _, bins = c.get(key)
             assert bins["val"] == 1
@@ -724,9 +724,9 @@ class TestOperateOrdered:
 
         client.put(key, {"a": 1, "b": 2, "c": 3})
         ops = [
-            {"op": aerospike.OPERATOR_READ, "bin": "c", "val": None},
-            {"op": aerospike.OPERATOR_READ, "bin": "a", "val": None},
-            {"op": aerospike.OPERATOR_READ, "bin": "b", "val": None},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "c", "val": None},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "a", "val": None},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "b", "val": None},
         ]
         _, meta, ordered = client.operate_ordered(key, ops)
         assert isinstance(ordered, list)
@@ -742,8 +742,8 @@ class TestOperateOrdered:
 
         client.put(key, {"counter": 0})
         ops = [
-            {"op": aerospike.OPERATOR_INCR, "bin": "counter", "val": 10},
-            {"op": aerospike.OPERATOR_READ, "bin": "counter", "val": None},
+            {"op": aerospike_py.OPERATOR_INCR, "bin": "counter", "val": 10},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "counter", "val": None},
         ]
         _, _, ordered = client.operate_ordered(key, ops)
         # The read after increment should show the new value

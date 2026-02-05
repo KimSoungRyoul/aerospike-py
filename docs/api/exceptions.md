@@ -3,8 +3,8 @@
 All exceptions are available from `aerospike` and `aerospike.exception`.
 
 ```python
-import aerospike
-from aerospike.exception import RecordNotFound
+import aerospike_py as aerospike
+from aerospike_py.exception import RecordNotFound
 ```
 
 ## Exception Hierarchy
@@ -79,8 +79,8 @@ Exception
 ### Basic Error Handling
 
 ```python
-import aerospike
-from aerospike.exception import RecordNotFound, AerospikeError
+import aerospike_py as aerospike
+from aerospike_py.exception import RecordNotFound, AerospikeError
 
 try:
     _, meta, bins = client.get(("test", "demo", "nonexistent"))
@@ -93,7 +93,7 @@ except AerospikeError as e:
 ### Optimistic Locking
 
 ```python
-from aerospike.exception import RecordGenerationError
+from aerospike_py.exception import RecordGenerationError
 
 try:
     _, meta, bins = client.get(key)
@@ -107,7 +107,7 @@ except RecordGenerationError:
 ### Create-Only
 
 ```python
-from aerospike.exception import RecordExistsError
+from aerospike_py.exception import RecordExistsError
 
 try:
     client.put(key, bins, policy={"exists": aerospike.POLICY_EXISTS_CREATE_ONLY})
@@ -118,7 +118,7 @@ except RecordExistsError:
 ### Connection Errors
 
 ```python
-from aerospike.exception import ClientError, ClusterError, TimeoutError
+from aerospike_py.exception import ClientError, ClusterError, TimeoutError
 
 try:
     client = aerospike.client(config).connect()

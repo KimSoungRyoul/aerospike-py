@@ -1,4 +1,4 @@
-"""Type stubs for aerospike.predicates module."""
+"""Type stubs for aerospike_py.predicates module."""
 
 from typing import Union
 

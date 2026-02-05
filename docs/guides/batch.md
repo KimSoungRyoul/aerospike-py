@@ -75,7 +75,7 @@ results = client.batch_remove(keys)
 
 ```python
 import asyncio
-from aerospike import AsyncClient
+from aerospike_py import AsyncClient
 
 async def main():
     client = AsyncClient({

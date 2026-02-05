@@ -32,13 +32,13 @@ maturin develop
 Verify the installation:
 
 ```bash
-python -c "import aerospike; print(aerospike.__version__)"
+python -c "import aerospike_py as aerospike; print(aerospike.__version__)"
 ```
 
 ## Sync Client Example
 
 ```python
-import aerospike
+import aerospike_py as aerospike
 
 # Create and connect
 client = aerospike.client({
@@ -79,7 +79,7 @@ client.close()
 
 ```python
 import asyncio
-from aerospike import AsyncClient
+from aerospike_py import AsyncClient
 
 async def main():
     client = AsyncClient({
