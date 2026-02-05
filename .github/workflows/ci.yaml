@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Python tools
+        run: pip install ruff
+
+      - name: Ruff check
+        run: ruff check src/ tests/
+
+      - name: Ruff format check
+        run: ruff format --check src/ tests/
+
+      - name: Cargo fmt check
+        run: cargo fmt --manifest-path rust/Cargo.toml --check
+
+      - name: Cargo clippy
+        run: cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
+
+  build:
+    name: Build & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install maturin pytest pytest-asyncio
+
+      - name: Build
+        run: maturin develop
+
+      - name: Unit tests
+        run: pytest tests/unit/ -v
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      aerospike:
+        image: aerospike/aerospike-server
+        ports:
+          - 3000:3000
+          - 3001:3001
+          - 3002:3002
+        env:
+          NAMESPACE: test
+          CLUSTER_NAME: docker
+        options: >-
+          --health-cmd "asinfo -v status"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install maturin pytest pytest-asyncio
+
+      - name: Build
+        run: maturin develop
+
+      - name: Wait for Aerospike
+        run: |
+          for i in $(seq 1 30); do
+            if python -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1',3000)); s.close()"; then
+              echo "Aerospike is ready"
+              break
+            fi
+            echo "Waiting for Aerospike... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run all tests
+        run: pytest tests/ -v
