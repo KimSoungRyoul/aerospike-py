@@ -1,0 +1,35 @@
+use aerospike_core::ReadPolicy;
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+
+/// Parse a Python policy dict into a ReadPolicy
+pub fn parse_read_policy(policy_dict: Option<&Bound<'_, PyDict>>) -> PyResult<ReadPolicy> {
+    let mut policy = ReadPolicy::default();
+
+    let dict = match policy_dict {
+        Some(d) => d,
+        None => return Ok(policy),
+    };
+
+    // Socket timeout
+    if let Some(val) = dict.get_item("socket_timeout")? {
+        policy.base_policy.socket_timeout = val.extract::<u32>()?;
+    }
+
+    // Total timeout
+    if let Some(val) = dict.get_item("total_timeout")? {
+        policy.base_policy.total_timeout = val.extract::<u32>()?;
+    }
+
+    // Max retries
+    if let Some(val) = dict.get_item("max_retries")? {
+        policy.base_policy.max_retries = val.extract::<usize>()?;
+    }
+
+    // Sleep between retries
+    if let Some(val) = dict.get_item("sleep_between_retries")? {
+        policy.base_policy.sleep_between_retries = val.extract::<u32>()?;
+    }
+
+    Ok(policy)
+}
