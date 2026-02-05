@@ -1,5 +1,12 @@
 # aerospike-py
 
+[![Python](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/downloads/)
+[![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org/)
+[![PyO3](https://img.shields.io/badge/PyO3-0.23-green.svg)](https://pyo3.rs/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/KimSoungRyoul/aerospike-py.svg)](https://github.com/KimSoungRyoul/aerospike-py/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/KimSoungRyoul/aerospike-py.svg)](https://github.com/KimSoungRyoul/aerospike-py/issues)
+
 Aerospike Python Client built with PyO3 + Rust. Drop-in replacement for [aerospike-client-python](https://github.com/aerospike/aerospike-client-python) powered by the [Aerospike Rust Client v2](https://github.com/aerospike/aerospike-client-rust).
 
 ## Features
