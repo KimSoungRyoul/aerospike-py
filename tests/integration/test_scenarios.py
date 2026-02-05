@@ -1,7 +1,6 @@
 """End-to-end scenario tests combining multiple operations."""
 
 import pytest
-import time
 
 import aerospike_py
 

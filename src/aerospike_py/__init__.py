@@ -4,11 +4,11 @@ Drop-in compatible replacement for the aerospike-client-python package.
 """
 
 from aerospike_py._aerospike import Client as _NativeClient
-from aerospike_py._aerospike import AsyncClient
-from aerospike_py._aerospike import Query, Scan
+from aerospike_py._aerospike import AsyncClient  # noqa: F401
+from aerospike_py._aerospike import Query, Scan  # noqa: F401
 
 # Import all exceptions from native module
-from aerospike_py._aerospike import (
+from aerospike_py._aerospike import (  # noqa: F401
     AerospikeError,
     ClientError,
     ClusterError,
@@ -35,7 +35,7 @@ from aerospike_py._aerospike import (
 )
 
 # Import all constants from native module
-from aerospike_py._aerospike import (
+from aerospike_py._aerospike import (  # noqa: F401
     # Policy Key
     POLICY_KEY_DIGEST,
     POLICY_KEY_SEND,
