@@ -184,6 +184,7 @@ client.admin_drop_role("custom_role")
 ## Performance
 
 Benchmark: **5,000 ops x 100 rounds**, warmup=200, async concurrency=50, Aerospike CE (Docker)
+> Environment: Apple M4 Pro, 24 GB RAM, macOS 26.2
 
 ### Latency (ms) — lower is better
 
