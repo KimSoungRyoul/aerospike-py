@@ -63,12 +63,8 @@ pub fn parse_privileges(privileges: &Bound<'_, PyList>) -> PyResult<Vec<Privileg
                 crate::errors::InvalidArgError::new_err("Privilege dict must have 'code' key")
             })?
             .extract()?;
-        let ns: Option<String> = dict
-            .get_item("ns")?
-            .and_then(|v| v.extract().ok());
-        let set_name: Option<String> = dict
-            .get_item("set")?
-            .and_then(|v| v.extract().ok());
+        let ns: Option<String> = dict.get_item("ns")?.and_then(|v| v.extract().ok());
+        let set_name: Option<String> = dict.get_item("set")?.and_then(|v| v.extract().ok());
         result.push(Privilege::new(code_to_privilege_code(code)?, ns, set_name));
     }
     Ok(result)

@@ -36,9 +36,8 @@ pub fn py_to_key(key_tuple: &Bound<'_, PyAny>) -> PyResult<Key> {
         }
     }
 
-    Key::new(namespace, set_name, user_key).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("Invalid key: {e}"))
-    })
+    Key::new(namespace, set_name, user_key)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("Invalid key: {e}")))
 }
 
 /// Convert Rust Key to Python tuple (namespace, set, key, digest)
@@ -51,11 +50,14 @@ pub fn key_to_py(py: Python<'_>, key: &Key) -> PyResult<PyObject> {
     };
     let digest = pyo3::types::PyBytes::new(py, &key.digest);
 
-    let tuple = PyTuple::new(py, [
-        ns.into_any().unbind(),
-        set.into_any().unbind(),
-        user_key,
-        digest.into_any().unbind(),
-    ])?;
+    let tuple = PyTuple::new(
+        py,
+        [
+            ns.into_any().unbind(),
+            set.into_any().unbind(),
+            user_key,
+            digest.into_any().unbind(),
+        ],
+    )?;
     Ok(tuple.into_any().unbind())
 }

@@ -1,9 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use aerospike_core::{
-    BatchDeletePolicy, BatchOperation, BatchReadPolicy, BatchRecord, Bin, Bins,
-    Client as AsClient, Error as AsError, PartitionFilter, ResultCode, Statement, Task, UDFLang,
-    Value,
+    BatchDeletePolicy, BatchOperation, BatchReadPolicy, BatchRecord, Bin, Bins, Client as AsClient,
+    Error as AsError, PartitionFilter, ResultCode, Statement, Task, UDFLang, Value,
 };
 use futures::StreamExt;
 use pyo3::prelude::*;
@@ -76,19 +75,27 @@ impl PyAsyncClient {
             .await
             .map_err(as_to_pyerr)?;
 
-            *inner.lock().map_err(|_| crate::errors::ClientError::new_err("Internal lock poisoned"))? = Some(Arc::new(client));
+            *inner
+                .lock()
+                .map_err(|_| crate::errors::ClientError::new_err("Internal lock poisoned"))? =
+                Some(Arc::new(client));
             Ok(())
         })
     }
 
     /// Check if connected (sync, no I/O).
     fn is_connected(&self) -> bool {
-        self.inner.lock().map(|guard| guard.is_some()).unwrap_or(false)
+        self.inner
+            .lock()
+            .map(|guard| guard.is_some())
+            .unwrap_or(false)
     }
 
     /// Close connection (async).
     fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let client = self.inner.lock()
+        let client = self
+            .inner
+            .lock()
             .map_err(|_| crate::errors::ClientError::new_err("Internal lock poisoned"))?
             .take();
         future_into_py(py, async move {
@@ -480,7 +487,10 @@ impl PyAsyncClient {
                 .map(|k| BatchOperation::read(&read_policy, k.clone(), Bins::All))
                 .collect();
 
-            let results = client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr)?;
+            let results = client
+                .batch(&batch_policy, &ops)
+                .await
+                .map_err(as_to_pyerr)?;
             Python::with_gil(|py| batch_records_to_py(py, &results))
         })
     }
@@ -507,7 +517,10 @@ impl PyAsyncClient {
                 .map(|k| BatchOperation::read(&read_policy, k.clone(), Bins::None))
                 .collect();
 
-            let results = client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr)?;
+            let results = client
+                .batch(&batch_policy, &ops)
+                .await
+                .map_err(as_to_pyerr)?;
 
             Python::with_gil(|py| {
                 let py_list = PyList::empty(py);
@@ -544,7 +557,10 @@ impl PyAsyncClient {
                 .map(|k| BatchOperation::delete(&delete_policy, k.clone()))
                 .collect();
 
-            let results = client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr)?;
+            let results = client
+                .batch(&batch_policy, &ops)
+                .await
+                .map_err(as_to_pyerr)?;
             Python::with_gil(|py| batch_records_to_py(py, &results))
         })
     }

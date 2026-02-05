@@ -83,7 +83,9 @@ def _bulk_median(round_times: list[float], count: int) -> dict:
 
 def _seed_sync(put_fn, prefix: str, count: int):
     for i in range(count):
-        put_fn((NAMESPACE, SET_NAME, f"{prefix}{i}"), {"n": f"u{i}", "a": i, "s": i * 1.1})
+        put_fn(
+            (NAMESPACE, SET_NAME, f"{prefix}{i}"), {"n": f"u{i}", "a": i, "s": i * 1.1}
+        )
 
 
 def _cleanup_sync(remove_fn, prefix: str, count: int):
@@ -193,7 +195,9 @@ def bench_rust_sync(host: str, port: int, count: int, rounds: int, warmup: int) 
 # ── 2) official aerospike C client ───────────────────────────
 
 
-def bench_c_sync(host: str, port: int, count: int, rounds: int, warmup: int) -> dict | None:
+def bench_c_sync(
+    host: str, port: int, count: int, rounds: int, warmup: int
+) -> dict | None:
     try:
         import aerospike as aerospike_c  # noqa: F811
     except ImportError:
@@ -456,8 +460,12 @@ def _print_table(
 
 
 def print_comparison(
-    rust: dict, c: dict | None, async_r: dict,
-    count: int, rounds: int, concurrency: int,
+    rust: dict,
+    c: dict | None,
+    async_r: dict,
+    count: int,
+    rounds: int,
+    concurrency: int,
 ):
     ops = ["put", "get", "batch_get", "scan"]
 
@@ -475,7 +483,10 @@ def print_comparison(
 
     _print_table(
         "Avg Latency (ms)  —  lower is better  [median of round means]",
-        ops, rust, c, async_r,
+        ops,
+        rust,
+        c,
+        async_r,
         metric="avg_ms",
         formatter=_fmt_ms,
         speedup_fn=_speedup_latency,
@@ -483,14 +494,17 @@ def print_comparison(
 
     _print_table(
         "Throughput (ops/sec)  —  higher is better  [median of rounds]",
-        ops, rust, c, async_r,
+        ops,
+        rust,
+        c,
+        async_r,
         metric="ops_per_sec",
         formatter=_fmt_ops,
         speedup_fn=_speedup_throughput,
     )
 
     # Stability indicator (stdev)
-    print(f"\n  Stability (stdev of round median latency, ms)  —  lower = more stable")
+    print("\n  Stability (stdev of round median latency, ms)  —  lower = more stable")
     w = COL_OP + 2 + COL_VAL * 3 + 6
     print(f"  {'':─<{w}}")
     h = f"  {'Operation':<{COL_OP}}"
@@ -511,7 +525,7 @@ def print_comparison(
     # P50/P99
     pct_ops = [op for op in ops if rust[op].get("p50_ms") is not None]
     if pct_ops:
-        print(f"\n  Tail Latency (ms)  [aggregated across all rounds]")
+        print("\n  Tail Latency (ms)  [aggregated across all rounds]")
         w2 = COL_OP + 2 + 18 * 4 + 10
         print(f"  {'':─<{w2}}")
         h = f"  {'Operation':<{COL_OP}}"
@@ -547,7 +561,7 @@ def main():
     parser.add_argument("--port", type=int, default=3000)
     args = parser.parse_args()
 
-    print(f"Benchmark config:")
+    print("Benchmark config:")
     print(f"  ops/round  = {args.count:,}")
     print(f"  rounds     = {args.rounds}")
     print(f"  warmup     = {args.warmup}")

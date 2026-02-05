@@ -68,9 +68,12 @@ impl PyClient {
 
         let client = py.allow_threads(|| {
             RUNTIME.block_on(async {
-                AsClient::new(&client_policy, &hosts_str as &(dyn aerospike_core::ToHosts + Send + Sync))
-                    .await
-                    .map_err(as_to_pyerr)
+                AsClient::new(
+                    &client_policy,
+                    &hosts_str as &(dyn aerospike_core::ToHosts + Send + Sync),
+                )
+                .await
+                .map_err(as_to_pyerr)
             })
         })?;
 
@@ -93,9 +96,7 @@ impl PyClient {
     fn close(&mut self, py: Python<'_>) -> PyResult<()> {
         if let Some(client) = self.inner.take() {
             py.allow_threads(|| {
-                RUNTIME.block_on(async {
-                    client.close().await.map_err(as_to_pyerr)
-                })
+                RUNTIME.block_on(async { client.close().await.map_err(as_to_pyerr) })
             })?;
         }
         Ok(())
@@ -104,9 +105,7 @@ impl PyClient {
     /// Get node names in the cluster
     fn get_node_names(&self, py: Python<'_>) -> PyResult<Vec<String>> {
         let client = self.get_client()?;
-        py.allow_threads(|| {
-            RUNTIME.block_on(async { Ok(client.node_names().await) })
-        })
+        py.allow_threads(|| RUNTIME.block_on(async { Ok(client.node_names().await) }))
     }
 
     /// Write a record
@@ -202,9 +201,7 @@ impl PyClient {
 
         // Single server call: get header only (Bins::None)
         let result = py.allow_threads(|| {
-            RUNTIME.block_on(async {
-                client.get(&read_policy, &rust_key, Bins::None).await
-            })
+            RUNTIME.block_on(async { client.get(&read_policy, &rust_key, Bins::None).await })
         });
 
         match result {
@@ -375,10 +372,7 @@ impl PyClient {
         let write_policy = parse_write_policy(policy, meta)?;
 
         let names: Vec<String> = bin_names.extract()?;
-        let bins: Vec<Bin> = names
-            .into_iter()
-            .map(|n| Bin::new(n, Value::Nil))
-            .collect();
+        let bins: Vec<Bin> = names.into_iter().map(|n| Bin::new(n, Value::Nil)).collect();
 
         py.allow_threads(|| {
             RUNTIME.block_on(async {
@@ -458,18 +452,24 @@ impl PyClient {
 
         let ordered_bins = PyList::empty(py);
         for (name, value) in &record.bins {
-            let tuple = PyTuple::new(py, [
-                name.into_pyobject(py)?.into_any().unbind(),
-                value_to_py(py, value)?,
-            ])?;
+            let tuple = PyTuple::new(
+                py,
+                [
+                    name.into_pyobject(py)?.into_any().unbind(),
+                    value_to_py(py, value)?,
+                ],
+            )?;
             ordered_bins.append(tuple)?;
         }
 
-        let result = PyTuple::new(py, [
-            key_py,
-            meta_dict.into_any().unbind(),
-            ordered_bins.into_any().unbind(),
-        ])?;
+        let result = PyTuple::new(
+            py,
+            [
+                key_py,
+                meta_dict.into_any().unbind(),
+                ordered_bins.into_any().unbind(),
+            ],
+        )?;
         Ok(result.into_any().unbind())
     }
 
@@ -635,7 +635,10 @@ impl PyClient {
 
         // Read the file contents
         let udf_body = std::fs::read(filename).map_err(|e| {
-            crate::errors::ClientError::new_err(format!("Failed to read UDF file '{}': {}", filename, e))
+            crate::errors::ClientError::new_err(format!(
+                "Failed to read UDF file '{}': {}",
+                filename, e
+            ))
         })?;
 
         // Extract the server path (basename)
@@ -1155,9 +1158,7 @@ impl PyClient {
             .collect();
 
         let results = py.allow_threads(|| {
-            RUNTIME.block_on(async {
-                client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr)
-            })
+            RUNTIME.block_on(async { client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr) })
         })?;
 
         let py_list = PyList::empty(py);
@@ -1244,9 +1245,7 @@ impl PyClient {
             .collect();
 
         let results = py.allow_threads(|| {
-            RUNTIME.block_on(async {
-                client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr)
-            })
+            RUNTIME.block_on(async { client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr) })
         })?;
 
         Self::batch_records_to_py(py, &results)
@@ -1283,9 +1282,7 @@ impl PyClient {
             .collect();
 
         let results = py.allow_threads(|| {
-            RUNTIME.block_on(async {
-                client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr)
-            })
+            RUNTIME.block_on(async { client.batch(&batch_policy, &ops).await.map_err(as_to_pyerr) })
         })?;
 
         Self::batch_records_to_py(py, &results)
@@ -1303,16 +1300,11 @@ impl PyClient {
                     for (name, value) in &record.bins {
                         bins.set_item(name, value_to_py(py, value)?)?;
                     }
-                    let tuple = PyTuple::new(py, [
-                        key_py,
-                        meta,
-                        bins.into_any().unbind(),
-                    ])?;
+                    let tuple = PyTuple::new(py, [key_py, meta, bins.into_any().unbind()])?;
                     py_list.append(tuple)?;
                 }
                 None => {
-                    let tuple =
-                        PyTuple::new(py, [key_py, py.None(), py.None()])?;
+                    let tuple = PyTuple::new(py, [key_py, py.None(), py.None()])?;
                     py_list.append(tuple)?;
                 }
             }

@@ -112,9 +112,7 @@ pub fn as_to_pyerr(err: AsError) -> PyErr {
                 ResultCode::IndexFound => IndexFoundError::new_err(msg),
                 ResultCode::IndexNotFound => IndexNotFound::new_err(msg),
                 // Query
-                ResultCode::QueryAborted | ResultCode::ScanAbort => {
-                    QueryAbortedError::new_err(msg)
-                }
+                ResultCode::QueryAborted | ResultCode::ScanAbort => QueryAbortedError::new_err(msg),
                 // UDF
                 ResultCode::UdfBadResponse => UDFError::new_err(msg),
                 // Admin / Security
@@ -146,7 +144,10 @@ pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Record-level exceptions
     m.add("RecordNotFound", py.get_type::<RecordNotFound>())?;
     m.add("RecordExistsError", py.get_type::<RecordExistsError>())?;
-    m.add("RecordGenerationError", py.get_type::<RecordGenerationError>())?;
+    m.add(
+        "RecordGenerationError",
+        py.get_type::<RecordGenerationError>(),
+    )?;
     m.add("RecordTooBig", py.get_type::<RecordTooBig>())?;
     m.add("BinNameError", py.get_type::<BinNameError>())?;
     m.add("BinExistsError", py.get_type::<BinExistsError>())?;

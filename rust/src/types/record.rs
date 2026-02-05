@@ -31,10 +31,9 @@ pub fn record_to_py(py: Python<'_>, record: &Record) -> PyResult<PyObject> {
         bins.set_item(name, value_to_py(py, value)?)?;
     }
 
-    let tuple = PyTuple::new(py, [
-        key_py,
-        meta.into_any().unbind(),
-        bins.into_any().unbind(),
-    ])?;
+    let tuple = PyTuple::new(
+        py,
+        [key_py, meta.into_any().unbind(), bins.into_any().unbind()],
+    )?;
     Ok(tuple.into_any().unbind())
 }

@@ -5,11 +5,9 @@ use pyo3::types::{PyDict, PyList, PyTuple};
 /// Config format: {"hosts": [("host", port), ...]}
 /// Returns a string like "host1:port1,host2:port2"
 pub fn parse_hosts_from_config(config: &Bound<'_, PyDict>) -> PyResult<String> {
-    let hosts_obj = config
-        .get_item("hosts")?
-        .ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("Config must contain 'hosts' key")
-        })?;
+    let hosts_obj = config.get_item("hosts")?.ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("Config must contain 'hosts' key")
+    })?;
 
     let hosts_list = hosts_obj.downcast::<PyList>()?;
     let mut host_strings = Vec::with_capacity(hosts_list.len());

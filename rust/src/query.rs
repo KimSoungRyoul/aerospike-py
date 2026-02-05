@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 #[allow(unused_imports)]
 use aerospike_core::as_val;
-use aerospike_core::{Bins, Client as AsClient, CollectionIndexType, PartitionFilter, Statement, Value};
+use aerospike_core::{
+    Bins, Client as AsClient, CollectionIndexType, PartitionFilter, Statement, Value,
+};
 use futures::StreamExt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
@@ -16,13 +18,39 @@ use crate::types::value::py_to_value;
 /// Stored predicate info (reconstructed into Filter at execution time)
 #[derive(Clone)]
 enum Predicate {
-    Equals { bin: String, val: Value },
-    Between { bin: String, min: i64, max: i64 },
-    ContainsString { bin: String, val: String, col_type: i32 },
-    ContainsInteger { bin: String, val: i64, col_type: i32 },
-    GeoWithinRegion { bin: String, geojson: String },
-    GeoWithinRadius { bin: String, lat: f64, lng: f64, radius: f64 },
-    GeoContainsPoint { bin: String, geojson: String },
+    Equals {
+        bin: String,
+        val: Value,
+    },
+    Between {
+        bin: String,
+        min: i64,
+        max: i64,
+    },
+    ContainsString {
+        bin: String,
+        val: String,
+        col_type: i32,
+    },
+    ContainsInteger {
+        bin: String,
+        val: i64,
+        col_type: i32,
+    },
+    GeoWithinRegion {
+        bin: String,
+        geojson: String,
+    },
+    GeoWithinRadius {
+        bin: String,
+        lat: f64,
+        lng: f64,
+        radius: f64,
+    },
+    GeoContainsPoint {
+        bin: String,
+        geojson: String,
+    },
 }
 
 fn parse_predicate(pred: &Bound<'_, PyTuple>) -> PyResult<Predicate> {
@@ -82,7 +110,12 @@ fn parse_predicate(pred: &Bound<'_, PyTuple>) -> PyResult<Predicate> {
     }
 }
 
-fn build_statement(namespace: &str, set_name: &str, bins: &[String], predicates: &[Predicate]) -> PyResult<Statement> {
+fn build_statement(
+    namespace: &str,
+    set_name: &str,
+    bins: &[String],
+    predicates: &[Predicate],
+) -> PyResult<Statement> {
     let bins_selector = if bins.is_empty() {
         Bins::All
     } else {
@@ -245,7 +278,12 @@ impl PyQuery {
     /// Execute the query and return all results as a list of (key, meta, bins).
     #[pyo3(signature = (policy=None))]
     fn results(&self, py: Python<'_>, policy: Option<&Bound<'_, PyDict>>) -> PyResult<PyObject> {
-        let stmt = build_statement(&self.namespace, &self.set_name, &self.bins, &self.predicates)?;
+        let stmt = build_statement(
+            &self.namespace,
+            &self.set_name,
+            &self.bins,
+            &self.predicates,
+        )?;
         execute_query(py, &self.client, stmt, policy)
     }
 
@@ -257,7 +295,12 @@ impl PyQuery {
         callback: &Bound<'_, PyAny>,
         policy: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<()> {
-        let stmt = build_statement(&self.namespace, &self.set_name, &self.bins, &self.predicates)?;
+        let stmt = build_statement(
+            &self.namespace,
+            &self.set_name,
+            &self.bins,
+            &self.predicates,
+        )?;
         execute_foreach(py, &self.client, stmt, callback, policy)
     }
 }

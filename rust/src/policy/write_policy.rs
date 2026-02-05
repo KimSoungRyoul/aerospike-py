@@ -1,6 +1,4 @@
-use aerospike_core::{
-    CommitLevel, Expiration, GenerationPolicy, RecordExistsAction, WritePolicy,
-};
+use aerospike_core::{CommitLevel, Expiration, GenerationPolicy, RecordExistsAction, WritePolicy};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
