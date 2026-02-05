@@ -181,6 +181,40 @@ client.admin_create_role("custom_role", [
 client.admin_drop_role("custom_role")
 ```
 
+## Performance
+
+Benchmark: **5,000 ops x 100 rounds**, warmup=200, async concurrency=50, Aerospike CE (Docker)
+
+### Latency (ms) — lower is better
+
+| Operation | aerospike-py (Rust) | official aerospike (C) | aerospike-py async (Rust) | Rust vs C | Async vs C |
+| --------- | ------------------: | ---------------------: | ------------------------: | --------: | ---------: |
+| put | 0.140 | 0.139 | 0.058 | 1.0x | 2.4x faster |
+| get | 0.141 | 0.141 | 0.063 | 1.0x | 2.2x faster |
+| batch_get | 0.011 | 0.011 | 0.011 | 1.0x | 1.0x |
+| scan | 0.009 | 0.009 | 0.010 | 1.0x | 1.0x |
+
+### Throughput (ops/sec) — higher is better
+
+| Operation | aerospike-py (Rust) | official aerospike (C) | aerospike-py async (Rust) | Rust vs C | Async vs C |
+| --------- | ------------------: | ---------------------: | ------------------------: | --------: | ---------: |
+| put | 7,143 | 7,214 | 17,284 | 1.0x | 2.4x faster |
+| get | 7,087 | 7,112 | 15,783 | 1.0x | 2.2x faster |
+| batch_get | 91,049 | 90,984 | 89,717 | 1.0x | 1.0x |
+| scan | 106,215 | 106,491 | 101,905 | 1.0x | 1.0x |
+
+### Tail Latency (ms)
+
+| Operation | Rust p50 | Rust p99 | C p50 | C p99 |
+| --------- | -------: | -------: | ----: | ----: |
+| put | 0.137 | 0.197 | 0.136 | 0.193 |
+| get | 0.138 | 0.200 | 0.138 | 0.200 |
+
+> **Summary**: Sync 성능은 공식 C client와 동등. `AsyncClient` + `asyncio.gather` 사용 시 **put 2.4x, get 2.2x** throughput 향상.
+> Batch/scan은 서버 I/O bound라 client 구현 차이가 거의 없음.
+>
+> 벤치마크 직접 실행: `bash benchmark/run_all.sh 5000 100`
+
 ## Contributing
 
 ### Local Development Setup
