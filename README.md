@@ -210,10 +210,10 @@ Benchmark: **5,000 ops x 100 rounds**, warmup=200, async concurrency=50, Aerospi
 | put | 0.137 | 0.197 | 0.136 | 0.193 |
 | get | 0.138 | 0.200 | 0.138 | 0.200 |
 
-> **Summary**: Sync 성능은 공식 C client와 동등. `AsyncClient` + `asyncio.gather` 사용 시 **put 2.4x, get 2.2x** throughput 향상.
-> Batch/scan은 서버 I/O bound라 client 구현 차이가 거의 없음.
+> **Summary**: Sync performance is on par with the official C client. With `AsyncClient` + `asyncio.gather`, throughput improves by **2.4x for put and 2.2x for get**.
+> Batch/scan are server I/O-bound, so client implementation makes little difference.
 >
-> 벤치마크 직접 실행: `bash benchmark/run_all.sh 5000 100`
+> Run the benchmark yourself: `bash benchmark/run_all.sh 5000 100`
 
 ## Contributing
 
