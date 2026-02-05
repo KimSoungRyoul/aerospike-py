@@ -1,24 +1,24 @@
 # Benchmark: aerospike-py vs Official aerospike (C Client)
 
-aerospike-py (Rust/PyO3)가 공식 aerospike Python client (C extension)보다 얼마나 빠른지 측정합니다.
+Measures how aerospike-py (Rust/PyO3) compares to the official aerospike Python client (C extension).
 
 ## Methodology
 
-일관된 결과를 위해 다음을 적용합니다:
+For consistent, reproducible results:
 
-1. **Warmup** (기본 200회) - 커넥션 풀, 서버 캐시 안정화 후 측정 시작
-2. **Multiple rounds** (기본 5회) - 라운드별 median을 구한 뒤 median-of-medians 보고
-3. **데이터 분리** - read 벤치마크 전 데이터를 미리 seed, put은 독립 측정
-4. **GC 비활성화** - 측정 구간에서 Python GC off
-5. **키 격리** - 각 client가 고유 prefix 사용, 서로 간섭 없음
+1. **Warmup** (default 200 ops) — stabilizes connection pools and server cache before measuring
+2. **Multiple rounds** (default 5) — reports median-of-medians across rounds
+3. **Data separation** — read benchmarks use pre-seeded data; put is measured independently
+4. **GC disabled** — Python garbage collection is off during measurement intervals
+5. **Key isolation** — each client uses a unique key prefix to avoid interference
 
 ## Comparison Targets
 
 | Column | Client | Description |
 | ------ | ------ | ----------- |
-| aerospike-py (Rust) | `aerospike.Client` | Rust 기반 sync client |
-| official aerospike (C) | `aerospike.client` (PyPI) | 공식 C extension sync client |
-| aerospike-py async (Rust) | `aerospike.AsyncClient` | Rust 기반 async + `asyncio.gather` |
+| aerospike-py (Rust) | `aerospike.Client` | Rust-based sync client |
+| official aerospike (C) | `aerospike.client` (PyPI) | Official C extension sync client |
+| aerospike-py async (Rust) | `aerospike.AsyncClient` | Rust-based async client + `asyncio.gather` |
 
 ## Prerequisites
 
@@ -38,13 +38,13 @@ pip install aerospike        # official C client
 ## Run
 
 ```bash
-# 기본 (1000 ops x 5 rounds, concurrency 50)
+# Default (1000 ops x 5 rounds, concurrency 50)
 bash benchmark/run_all.sh
 
-# 커스텀: count rounds concurrency
+# Custom: count rounds concurrency
 bash benchmark/run_all.sh 2000 7 100
 
-# 직접 실행
+# Direct execution
 python benchmark/bench_compare.py --count 1000 --rounds 5 --warmup 200 --concurrency 50
 ```
 
@@ -80,13 +80,13 @@ Benchmark config:
 
 | Metric | Description |
 | ------ | ----------- |
-| avg_ms | median of round means (낮을수록 좋음) |
-| p50_ms | median of round medians |
-| p99_ms | aggregated 99th percentile |
-| ops_per_sec | median of round throughputs (높을수록 좋음) |
-| stdev_ms | 라운드 간 median 편차 (낮을수록 안정적) |
-| Rust vs C | aerospike-py sync이 C client 대비 몇 배 빠른지 |
-| Async vs C | aerospike-py async가 C client 대비 몇 배 빠른지 |
+| avg_ms | Median of round means (lower is better) |
+| p50_ms | Median of round medians |
+| p99_ms | Aggregated 99th percentile |
+| ops_per_sec | Median of round throughputs (higher is better) |
+| stdev_ms | Stdev of round medians (lower = more stable) |
+| Rust vs C | Speedup of aerospike-py sync vs C client |
+| Async vs C | Speedup of aerospike-py async vs C client |
 
 ## Environment Variables
 
@@ -97,7 +97,7 @@ Benchmark config:
 
 ## Why Faster?
 
-- **Rust async runtime**: 내부적으로 Tokio 기반 비동기 I/O
-- **Zero-copy**: PyO3를 통한 효율적인 Python-Rust 타입 변환
-- **Native async**: `AsyncClient` + `asyncio.gather`로 수천 개 동시 요청
-- **No GIL bottleneck**: Rust 코드 실행 중 GIL 해제 (`py.allow_threads`)
+- **Rust async runtime**: Tokio-based async I/O under the hood
+- **Zero-copy**: Efficient Python-Rust type conversion via PyO3
+- **Native async**: `AsyncClient` + `asyncio.gather` for thousands of concurrent requests
+- **No GIL bottleneck**: GIL released during Rust execution (`py.allow_threads`)

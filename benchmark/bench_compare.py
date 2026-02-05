@@ -39,7 +39,7 @@ def _measure_loop(fn, count: int) -> list[float]:
     return times
 
 
-def _measure_bulk(fn, count: int) -> float:
+def _measure_bulk(fn) -> float:
     """Call fn() once, return total elapsed seconds."""
     t0 = time.perf_counter()
     fn()
@@ -120,20 +120,23 @@ def bench_rust_sync(host: str, port: int, count: int, rounds: int, warmup: int) 
     prefix = "rs_"
     results = {}
 
-    # --- warmup ---
+    # --- warmup (discarded) ---
     for i in range(warmup):
         key = (NAMESPACE, SET_NAME, f"_warm_rs_{i}")
-        client.put(key, {"w": i})
-        client.get(key)
-        client.remove(key)
+        try:
+            client.put(key, {"w": i})
+            client.get(key)
+            client.remove(key)
+        except Exception:
+            pass
 
     # --- PUT ---
     put_rounds = []
     for r in range(rounds):
         gc.disable()
         times = _measure_loop(
-            lambda i: client.put(
-                (NAMESPACE, SET_NAME, f"{prefix}p{r}_{i}"),
+            lambda i, _r=r: client.put(
+                (NAMESPACE, SET_NAME, f"{prefix}p{_r}_{i}"),
                 {"n": f"u{i}", "a": i, "s": i * 1.1},
             ),
             count,
@@ -165,7 +168,7 @@ def bench_rust_sync(host: str, port: int, count: int, rounds: int, warmup: int) 
     batch_rounds = []
     for _ in range(rounds):
         gc.disable()
-        elapsed = _measure_bulk(lambda: client.get_many(keys), count)
+        elapsed = _measure_bulk(lambda: client.get_many(keys))
         gc.enable()
         batch_rounds.append(elapsed)
     results["batch_get"] = _bulk_median(batch_rounds, count)
@@ -175,7 +178,7 @@ def bench_rust_sync(host: str, port: int, count: int, rounds: int, warmup: int) 
     for _ in range(rounds):
         scan = client.scan(NAMESPACE, SET_NAME)
         gc.disable()
-        elapsed = _measure_bulk(lambda: scan.results(), count)
+        elapsed = _measure_bulk(lambda: scan.results())
         gc.enable()
         scan_rounds.append(elapsed)
     results["scan"] = _bulk_median(scan_rounds, count)
@@ -201,20 +204,23 @@ def bench_c_sync(host: str, port: int, count: int, rounds: int, warmup: int) -> 
     prefix = "cc_"
     results = {}
 
-    # --- warmup ---
+    # --- warmup (discarded) ---
     for i in range(warmup):
         key = (NAMESPACE, SET_NAME, f"_warm_cc_{i}")
-        client.put(key, {"w": i})
-        client.get(key)
-        client.remove(key)
+        try:
+            client.put(key, {"w": i})
+            client.get(key)
+            client.remove(key)
+        except Exception:
+            pass
 
     # --- PUT ---
     put_rounds = []
     for r in range(rounds):
         gc.disable()
         times = _measure_loop(
-            lambda i: client.put(
-                (NAMESPACE, SET_NAME, f"{prefix}p{r}_{i}"),
+            lambda i, _r=r: client.put(
+                (NAMESPACE, SET_NAME, f"{prefix}p{_r}_{i}"),
                 {"n": f"u{i}", "a": i, "s": i * 1.1},
             ),
             count,
@@ -245,7 +251,7 @@ def bench_c_sync(host: str, port: int, count: int, rounds: int, warmup: int) -> 
     batch_rounds = []
     for _ in range(rounds):
         gc.disable()
-        elapsed = _measure_bulk(lambda: client.get_many(keys), count)
+        elapsed = _measure_bulk(lambda: client.get_many(keys))
         gc.enable()
         batch_rounds.append(elapsed)
     results["batch_get"] = _bulk_median(batch_rounds, count)
@@ -255,7 +261,7 @@ def bench_c_sync(host: str, port: int, count: int, rounds: int, warmup: int) -> 
     for _ in range(rounds):
         scan = client.scan(NAMESPACE, SET_NAME)
         gc.disable()
-        elapsed = _measure_bulk(lambda: scan.results(), count)
+        elapsed = _measure_bulk(lambda: scan.results())
         gc.enable()
         scan_rounds.append(elapsed)
     results["scan"] = _bulk_median(scan_rounds, count)
@@ -282,12 +288,15 @@ async def bench_rust_async(
     results = {}
     sem = asyncio.Semaphore(concurrency)
 
-    # --- warmup ---
+    # --- warmup (discarded) ---
     for i in range(warmup):
         key = (NAMESPACE, SET_NAME, f"_warm_ra_{i}")
-        await client.put(key, {"w": i})
-        await client.get(key)
-        await client.remove(key)
+        try:
+            await client.put(key, {"w": i})
+            await client.get(key)
+            await client.remove(key)
+        except Exception:
+            pass
 
     # --- PUT (concurrent) ---
     put_rounds = []
