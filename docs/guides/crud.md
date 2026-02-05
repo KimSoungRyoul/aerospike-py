@@ -13,7 +13,7 @@ key = ("test", "demo", b"\x01\x02")   # bytes PK
 ## Write (Put)
 
 ```python
-import aerospike
+import aerospike_py as aerospike
 
 client = aerospike.client({"hosts": [("127.0.0.1", 3000)]}).connect()
 
@@ -148,7 +148,7 @@ _, meta, results = client.operate_ordered(key, ops)
 Use generation-based conflict resolution:
 
 ```python
-from aerospike.exception import RecordGenerationError
+from aerospike_py.exception import RecordGenerationError
 
 # Read current state
 _, meta, bins = client.get(key)
@@ -168,7 +168,7 @@ except RecordGenerationError:
 ## Error Handling
 
 ```python
-from aerospike.exception import (
+from aerospike_py.exception import (
     RecordNotFound,
     RecordExistsError,
     AerospikeError,

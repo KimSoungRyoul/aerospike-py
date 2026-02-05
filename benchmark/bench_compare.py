@@ -111,9 +111,9 @@ async def _seed_async(client, prefix: str, count: int, concurrency: int):
 
 
 def bench_rust_sync(host: str, port: int, count: int, rounds: int, warmup: int) -> dict:
-    import aerospike
+    import aerospike_py
 
-    client = aerospike.client(
+    client = aerospike_py.client(
         {"hosts": [(host, port)], "cluster_name": "docker"}
     ).connect()
 
@@ -279,7 +279,7 @@ def bench_c_sync(host: str, port: int, count: int, rounds: int, warmup: int) -> 
 async def bench_rust_async(
     host: str, port: int, count: int, rounds: int, warmup: int, concurrency: int
 ) -> dict:
-    from aerospike import AsyncClient
+    from aerospike_py import AsyncClient
 
     client = AsyncClient({"hosts": [(host, port)], "cluster_name": "docker"})
     await client.connect()

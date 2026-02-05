@@ -6,7 +6,7 @@ The `AsyncClient` provides a fully asynchronous API for Aerospike operations usi
 
 ```python
 import asyncio
-from aerospike import AsyncClient
+from aerospike_py import AsyncClient
 
 async def main():
     client = AsyncClient({

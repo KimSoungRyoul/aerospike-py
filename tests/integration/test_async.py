@@ -9,7 +9,7 @@ import asyncio
 
 import pytest
 
-import aerospike
+import aerospike_py
 
 CONFIG = {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
 
@@ -27,7 +27,7 @@ def _run(coro):
 class TestAsyncConnection:
     def test_is_connected(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             assert c.is_connected()
             await c.close()
@@ -36,7 +36,7 @@ class TestAsyncConnection:
 
     def test_close(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             assert c.is_connected()
             await c.close()
@@ -48,7 +48,7 @@ class TestAsyncConnection:
 class TestAsyncCRUD:
     def test_put_and_get(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             key = ("test", "demo", "async_key1")
             await c.put(key, {"name": "async", "val": 42})
@@ -64,7 +64,7 @@ class TestAsyncCRUD:
 
     def test_exists(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             key = ("test", "demo", "async_exists")
             await c.put(key, {"a": 1})
@@ -82,7 +82,7 @@ class TestAsyncCRUD:
 
     def test_touch_and_increment(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             key = ("test", "demo", "async_touch")
             await c.put(key, {"counter": 10})
@@ -98,13 +98,13 @@ class TestAsyncCRUD:
 
     def test_operate(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             key = ("test", "demo", "async_operate")
             await c.put(key, {"a": 1, "b": "hello"})
             ops = [
-                {"op": aerospike.OPERATOR_INCR, "bin": "a", "val": 10},
-                {"op": aerospike.OPERATOR_READ, "bin": "a", "val": None},
+                {"op": aerospike_py.OPERATOR_INCR, "bin": "a", "val": 10},
+                {"op": aerospike_py.OPERATOR_READ, "bin": "a", "val": None},
             ]
             record = await c.operate(key, ops)
             _, _, bins = record
@@ -122,7 +122,7 @@ class TestAsyncCRUD:
 class TestAsyncBatch:
     def test_get_many(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             keys = [
                 ("test", "demo", "async_batch_1"),
@@ -142,7 +142,7 @@ class TestAsyncBatch:
 
     def test_exists_many(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             keys = [
                 ("test", "demo", "async_em_1"),
@@ -164,7 +164,7 @@ class TestAsyncBatch:
 class TestAsyncScan:
     def test_scan(self):
         async def _test():
-            c = aerospike.AsyncClient(CONFIG)
+            c = aerospike_py.AsyncClient(CONFIG)
             await c.connect()
             key = ("test", "demo", "async_scan_1")
             await c.put(key, {"s": "data"})

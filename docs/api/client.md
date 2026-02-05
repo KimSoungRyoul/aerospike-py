@@ -5,7 +5,7 @@ The synchronous `Client` class wraps the Rust native client with a Python-friend
 ## Creating a Client
 
 ```python
-import aerospike
+import aerospike_py as aerospike
 
 client = aerospike.client({
     "hosts": [("127.0.0.1", 3000)],

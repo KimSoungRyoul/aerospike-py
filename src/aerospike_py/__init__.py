@@ -3,12 +3,12 @@
 Drop-in compatible replacement for the aerospike-client-python package.
 """
 
-from aerospike._aerospike import Client as _NativeClient
-from aerospike._aerospike import AsyncClient
-from aerospike._aerospike import Query, Scan
+from aerospike_py._aerospike import Client as _NativeClient
+from aerospike_py._aerospike import AsyncClient
+from aerospike_py._aerospike import Query, Scan
 
 # Import all exceptions from native module
-from aerospike._aerospike import (
+from aerospike_py._aerospike import (
     AerospikeError,
     ClientError,
     ClusterError,
@@ -35,7 +35,7 @@ from aerospike._aerospike import (
 )
 
 # Import all constants from native module
-from aerospike._aerospike import (
+from aerospike_py._aerospike import (
     # Policy Key
     POLICY_KEY_DIGEST,
     POLICY_KEY_SEND,
@@ -215,8 +215,8 @@ from aerospike._aerospike import (
 )
 
 # Re-export exception subclasses from exception module for backward compat
-from aerospike import exception  # noqa: F401
-from aerospike import predicates  # noqa: F401
+from aerospike_py import exception  # noqa: F401
+from aerospike_py import predicates  # noqa: F401
 
 __version__ = "0.1.0"
 
@@ -228,7 +228,7 @@ class Client(_NativeClient):
         """Connect to the Aerospike cluster.
 
         Returns self for method chaining:
-            client = aerospike.client({...}).connect()
+            client = aerospike_py.client({...}).connect()
         """
         super().connect(username, password)
         return self
@@ -245,7 +245,7 @@ def client(config: dict) -> Client:
         A new Client instance (not yet connected).
 
     Example:
-        >>> client = aerospike.client({'hosts': [('127.0.0.1', 3000)]})
+        >>> client = aerospike_py.client({'hosts': [('127.0.0.1', 3000)]})
         >>> client.connect()
     """
     return Client(config)

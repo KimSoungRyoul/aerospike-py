@@ -1,5 +1,5 @@
 [project]
-name = "aerospike"
+name = "aerospike-py"
 version = "0.1.0"
 description = "Aerospike Python Client - PyO3 + Rust binding"
 readme = "README.md"
@@ -21,6 +21,6 @@ build-backend = "maturin"
 
 [tool.maturin]
 python-source = "src"
-module-name = "aerospike._aerospike"
+module-name = "aerospike_py._aerospike"
 manifest-path = "rust/Cargo.toml"
 features = ["pyo3/extension-module"]

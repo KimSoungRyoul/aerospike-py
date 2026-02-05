@@ -3,14 +3,14 @@
 import pytest
 import time
 
-import aerospike
-from aerospike import predicates as p
+import aerospike_py
+from aerospike_py import predicates as p
 
 
 @pytest.fixture(scope="module")
 def client():
     try:
-        c = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c
@@ -29,7 +29,7 @@ def seed_data(client):
     # Create secondary index on 'age'
     try:
         client.index_integer_create("test", "query_test", "age", "idx_query_age")
-    except aerospike.ServerError:
+    except aerospike_py.ServerError:
         pass  # Index may already exist
 
     time.sleep(1)  # Wait for index to be ready
@@ -131,7 +131,7 @@ class TestIndex:
         try:
             client.index_string_create("test", "query_test", "name", "idx_query_name")
             time.sleep(1)
-        except aerospike.ServerError:
+        except aerospike_py.ServerError:
             pass  # May already exist
 
         # Cleanup

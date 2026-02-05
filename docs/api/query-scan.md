@@ -23,7 +23,7 @@ query.select("name", "age")
 Add a filter predicate. Requires a secondary index on the bin.
 
 ```python
-from aerospike import predicates
+from aerospike_py import predicates
 
 query.where(predicates.equals("name", "Alice"))
 query.where(predicates.between("age", 20, 30))
@@ -109,7 +109,7 @@ The `aerospike.predicates` module provides filter functions for queries.
 Match records where `bin_name == val`.
 
 ```python
-from aerospike import predicates
+from aerospike_py import predicates
 
 # String equality
 predicates.equals("name", "Alice")
@@ -164,8 +164,8 @@ predicates.geo_contains_geojson_point("region", point)
 ## Full Query Example
 
 ```python
-import aerospike
-from aerospike import predicates
+import aerospike_py as aerospike
+from aerospike_py import predicates
 
 client = aerospike.client({
     "hosts": [("127.0.0.1", 3000)],

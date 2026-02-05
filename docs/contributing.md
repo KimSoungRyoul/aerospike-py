@@ -37,7 +37,7 @@ aerospike-py/
 │   ├── constants.rs   # 130+ constants
 │   ├── types/         # Type converters
 │   └── policy/        # Policy parsers
-├── src/aerospike/     # Python package
+├── src/aerospike_py/  # Python package
 ├── tests/             # Test suite
 ├── docs/              # Documentation (MkDocs)
 └── benchmark/         # Benchmark scripts
@@ -107,7 +107,7 @@ pre-commit install
 ## Making Changes
 
 1. **Rust code** (`rust/src/`): Edit, then `maturin develop` to rebuild.
-2. **Python code** (`src/aerospike/`): Changes apply immediately.
+2. **Python code** (`src/aerospike_py/`): Changes apply immediately.
 3. **Tests**: Add to `tests/unit/` or `tests/integration/`.
 4. **Docs**: Edit files in `docs/`, preview with `mkdocs serve`.
 

@@ -2,14 +2,14 @@
 
 import pytest
 
-import aerospike
+import aerospike_py
 
 
 @pytest.fixture(scope="module")
 def client():
     """Create and connect a client for the test module."""
     try:
-        c = aerospike.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c
@@ -126,8 +126,8 @@ class TestBatchOperate:
         client.put(keys[1], {"counter": 20})
 
         ops = [
-            {"op": aerospike.OPERATOR_INCR, "bin": "counter", "val": 5},
-            {"op": aerospike.OPERATOR_READ, "bin": "counter", "val": None},
+            {"op": aerospike_py.OPERATOR_INCR, "bin": "counter", "val": 5},
+            {"op": aerospike_py.OPERATOR_READ, "bin": "counter", "val": None},
         ]
         results = client.batch_operate(keys, ops)
         assert len(results) == 2

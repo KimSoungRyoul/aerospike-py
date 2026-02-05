@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-import aerospike
+import aerospike_py
 
 UDF_FILE = os.path.join(os.path.dirname(__file__), "..", "test_udf.lua")
 
@@ -13,7 +13,7 @@ UDF_FILE = os.path.join(os.path.dirname(__file__), "..", "test_udf.lua")
 def client():
     config = {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
     try:
-        c = aerospike.client(config).connect()
+        c = aerospike_py.client(config).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c

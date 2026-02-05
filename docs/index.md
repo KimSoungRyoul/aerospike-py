@@ -40,7 +40,7 @@ maturin develop
 ## Quick Example
 
 ```python
-import aerospike
+import aerospike_py as aerospike
 
 client = aerospike.client({
     "hosts": [("127.0.0.1", 3000)],
@@ -68,7 +68,7 @@ aerospike-py/
 │   ├── constants.rs   # 130+ constants
 │   ├── types/         # Type converters
 │   └── policy/        # Policy parsers
-├── src/aerospike/     # Python package
+├── src/aerospike_py/  # Python package
 │   ├── __init__.py    # Re-exports, Client wrapper
 │   ├── exception.py   # Exception hierarchy
 │   └── predicates.py  # Query predicates

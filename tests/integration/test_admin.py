@@ -2,14 +2,14 @@
 
 import pytest
 
-import aerospike
+import aerospike_py
 
 
 @pytest.fixture(scope="module")
 def client():
     config = {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
     try:
-        c = aerospike.client(config).connect()
+        c = aerospike_py.client(config).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c
@@ -22,7 +22,7 @@ def skip_if_no_security(func):
     def wrapper(client, *args, **kwargs):
         try:
             return func(client, *args, **kwargs)
-        except aerospike.AerospikeError as e:
+        except aerospike_py.AerospikeError as e:
             if "security" in str(e).lower() or "not supported" in str(e).lower():
                 pytest.skip("Security not enabled on this server")
             raise
@@ -35,7 +35,7 @@ class TestAdminUser:
         """Test creating and dropping a user."""
         try:
             client.admin_create_user("test_user_1", "password123", ["read-write"])
-        except aerospike.AerospikeError as e:
+        except aerospike_py.AerospikeError as e:
             if "security" in str(e).lower() or "not supported" in str(e).lower():
                 pytest.skip("Security not enabled on this server")
             raise
@@ -51,7 +51,7 @@ class TestAdminUser:
         """Test granting and revoking roles."""
         try:
             client.admin_create_user("test_user_2", "password123", ["read"])
-        except aerospike.AerospikeError as e:
+        except aerospike_py.AerospikeError as e:
             if "security" in str(e).lower() or "not supported" in str(e).lower():
                 pytest.skip("Security not enabled on this server")
             raise
@@ -74,7 +74,7 @@ class TestAdminUser:
             assert isinstance(users, list)
             # At least the admin user should exist
             assert len(users) >= 1
-        except aerospike.AerospikeError as e:
+        except aerospike_py.AerospikeError as e:
             if "security" in str(e).lower() or "not supported" in str(e).lower():
                 pytest.skip("Security not enabled on this server")
             raise
@@ -83,7 +83,7 @@ class TestAdminUser:
         """Test changing a user's password."""
         try:
             client.admin_create_user("test_user_pw", "old_pass", ["read"])
-        except aerospike.AerospikeError as e:
+        except aerospike_py.AerospikeError as e:
             if "security" in str(e).lower() or "not supported" in str(e).lower():
                 pytest.skip("Security not enabled on this server")
             raise
@@ -100,9 +100,9 @@ class TestAdminRole:
         try:
             client.admin_create_role(
                 "test_role_1",
-                [{"code": aerospike.PRIV_READ, "ns": "test", "set": "demo"}],
+                [{"code": aerospike_py.PRIV_READ, "ns": "test", "set": "demo"}],
             )
-        except aerospike.AerospikeError as e:
+        except aerospike_py.AerospikeError as e:
             if "security" in str(e).lower() or "not supported" in str(e).lower():
                 pytest.skip("Security not enabled on this server")
             raise
@@ -111,7 +111,7 @@ class TestAdminRole:
             role_info = client.admin_query_role("test_role_1")
             assert role_info["name"] == "test_role_1"
             assert len(role_info["privileges"]) == 1
-            assert role_info["privileges"][0]["code"] == aerospike.PRIV_READ
+            assert role_info["privileges"][0]["code"] == aerospike_py.PRIV_READ
         finally:
             client.admin_drop_role("test_role_1")
 
@@ -120,9 +120,9 @@ class TestAdminRole:
         try:
             client.admin_create_role(
                 "test_role_2",
-                [{"code": aerospike.PRIV_READ}],
+                [{"code": aerospike_py.PRIV_READ}],
             )
-        except aerospike.AerospikeError as e:
+        except aerospike_py.AerospikeError as e:
             if "security" in str(e).lower() or "not supported" in str(e).lower():
                 pytest.skip("Security not enabled on this server")
             raise
@@ -130,19 +130,19 @@ class TestAdminRole:
         try:
             client.admin_grant_privileges(
                 "test_role_2",
-                [{"code": aerospike.PRIV_WRITE}],
+                [{"code": aerospike_py.PRIV_WRITE}],
             )
             role_info = client.admin_query_role("test_role_2")
             codes = [p["code"] for p in role_info["privileges"]]
-            assert aerospike.PRIV_WRITE in codes
+            assert aerospike_py.PRIV_WRITE in codes
 
             client.admin_revoke_privileges(
                 "test_role_2",
-                [{"code": aerospike.PRIV_READ}],
+                [{"code": aerospike_py.PRIV_READ}],
             )
             role_info = client.admin_query_role("test_role_2")
             codes = [p["code"] for p in role_info["privileges"]]
-            assert aerospike.PRIV_READ not in codes
+            assert aerospike_py.PRIV_READ not in codes
         finally:
             client.admin_drop_role("test_role_2")
 
@@ -153,7 +153,7 @@ class TestAdminRole:
             assert isinstance(roles, list)
             # Built-in roles should exist
             assert len(roles) >= 1
-        except aerospike.AerospikeError as e:
+        except aerospike_py.AerospikeError as e:
             if "security" in str(e).lower() or "not supported" in str(e).lower():
                 pytest.skip("Security not enabled on this server")
             raise

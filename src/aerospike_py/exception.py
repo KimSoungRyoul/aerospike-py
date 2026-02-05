@@ -5,7 +5,7 @@ This module provides the full exception hierarchy for compatibility
 with the existing aerospike-client-python.
 """
 
-from aerospike._aerospike import (
+from aerospike_py._aerospike import (
     # Base exceptions
     AerospikeError,
     ClientError,
