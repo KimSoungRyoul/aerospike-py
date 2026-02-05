@@ -1,7 +1,13 @@
-"""Synchronous benchmark: aerospike-py (Rust) vs aerospike (C client).
+"""Sync benchmark: aerospike-py (Rust) vs aerospike (official C client).
+
+Measures latency and throughput for put/get/batch_get/scan,
+then prints a side-by-side comparison with speedup ratios.
 
 Usage:
     python benchmark/bench_sync.py [--count N] [--host HOST] [--port PORT]
+
+Requirements:
+    pip install aerospike   # official C client (comparison target)
 """
 
 import argparse
@@ -9,11 +15,36 @@ import statistics
 import time
 
 NAMESPACE = "test"
-SET_NAME = "bench"
+SET_NAME = "bench_sync"
 
 
-def bench_aerospike_py(host: str, port: int, count: int) -> dict:
-    """Benchmark aerospike-py (this project, Rust-based)."""
+# ── helpers ──────────────────────────────────────────────────
+
+
+def _summarize(times: list[float]) -> dict:
+    ms = [t * 1000 for t in times]
+    total = sum(times)
+    return {
+        "avg_ms": statistics.mean(ms),
+        "p50_ms": statistics.median(ms),
+        "p99_ms": sorted(ms)[int(len(ms) * 0.99)] if len(ms) >= 100 else max(ms),
+        "ops_per_sec": len(times) / total if total > 0 else 0,
+    }
+
+
+def _bulk_summary(count: int, elapsed: float) -> dict:
+    return {
+        "avg_ms": (elapsed / count) * 1000,
+        "p50_ms": None,
+        "p99_ms": None,
+        "ops_per_sec": count / elapsed if elapsed > 0 else 0,
+    }
+
+
+# ── aerospike-py (Rust) ─────────────────────────────────────
+
+
+def bench_rust(host: str, port: int, count: int) -> dict:
     import aerospike
 
     client = aerospike.client(
@@ -22,46 +53,39 @@ def bench_aerospike_py(host: str, port: int, count: int) -> dict:
 
     results = {}
 
-    # -- PUT --
+    # PUT
     times = []
     for i in range(count):
         key = (NAMESPACE, SET_NAME, f"rust_{i}")
-        start = time.perf_counter()
+        t0 = time.perf_counter()
         client.put(key, {"name": f"user_{i}", "age": i, "score": i * 1.1})
-        times.append(time.perf_counter() - start)
+        times.append(time.perf_counter() - t0)
     results["put"] = _summarize(times)
 
-    # -- GET --
+    # GET
     times = []
     for i in range(count):
         key = (NAMESPACE, SET_NAME, f"rust_{i}")
-        start = time.perf_counter()
+        t0 = time.perf_counter()
         client.get(key)
-        times.append(time.perf_counter() - start)
+        times.append(time.perf_counter() - t0)
     results["get"] = _summarize(times)
 
-    # -- BATCH GET --
+    # BATCH GET
     keys = [(NAMESPACE, SET_NAME, f"rust_{i}") for i in range(count)]
-    start = time.perf_counter()
+    t0 = time.perf_counter()
     client.get_many(keys)
-    elapsed = time.perf_counter() - start
-    results["batch_get"] = {
-        "total_ms": elapsed * 1000,
-        "ops_per_sec": count / elapsed,
-    }
+    elapsed = time.perf_counter() - t0
+    results["batch_get"] = _bulk_summary(count, elapsed)
 
-    # -- SCAN --
+    # SCAN
     scan = client.scan(NAMESPACE, SET_NAME)
-    start = time.perf_counter()
+    t0 = time.perf_counter()
     records = scan.results()
-    elapsed = time.perf_counter() - start
-    results["scan"] = {
-        "total_ms": elapsed * 1000,
-        "records": len(records),
-        "ops_per_sec": len(records) / elapsed if elapsed > 0 else 0,
-    }
+    elapsed = time.perf_counter() - t0
+    results["scan"] = _bulk_summary(len(records), elapsed)
 
-    # Cleanup
+    # cleanup
     for i in range(count):
         client.remove((NAMESPACE, SET_NAME, f"rust_{i}"))
     client.close()
@@ -69,12 +93,13 @@ def bench_aerospike_py(host: str, port: int, count: int) -> dict:
     return results
 
 
-def bench_aerospike_c(host: str, port: int, count: int) -> dict | None:
-    """Benchmark aerospike (C client from PyPI)."""
+# ── aerospike official C client ──────────────────────────────
+
+
+def bench_c(host: str, port: int, count: int) -> dict | None:
     try:
-        import aerospike as aerospike_c
+        import aerospike as aerospike_c  # noqa: F811
     except ImportError:
-        print("[SKIP] aerospike (C client) not installed. pip install aerospike")
         return None
 
     config = {"hosts": [(host, port)]}
@@ -82,46 +107,39 @@ def bench_aerospike_c(host: str, port: int, count: int) -> dict | None:
 
     results = {}
 
-    # -- PUT --
+    # PUT
     times = []
     for i in range(count):
         key = (NAMESPACE, SET_NAME, f"c_{i}")
-        start = time.perf_counter()
+        t0 = time.perf_counter()
         client.put(key, {"name": f"user_{i}", "age": i, "score": i * 1.1})
-        times.append(time.perf_counter() - start)
+        times.append(time.perf_counter() - t0)
     results["put"] = _summarize(times)
 
-    # -- GET --
+    # GET
     times = []
     for i in range(count):
         key = (NAMESPACE, SET_NAME, f"c_{i}")
-        start = time.perf_counter()
+        t0 = time.perf_counter()
         client.get(key)
-        times.append(time.perf_counter() - start)
+        times.append(time.perf_counter() - t0)
     results["get"] = _summarize(times)
 
-    # -- BATCH GET --
+    # BATCH GET
     keys = [(NAMESPACE, SET_NAME, f"c_{i}") for i in range(count)]
-    start = time.perf_counter()
+    t0 = time.perf_counter()
     client.get_many(keys)
-    elapsed = time.perf_counter() - start
-    results["batch_get"] = {
-        "total_ms": elapsed * 1000,
-        "ops_per_sec": count / elapsed,
-    }
+    elapsed = time.perf_counter() - t0
+    results["batch_get"] = _bulk_summary(count, elapsed)
 
-    # -- SCAN --
+    # SCAN
     scan = client.scan(NAMESPACE, SET_NAME)
-    start = time.perf_counter()
+    t0 = time.perf_counter()
     records = scan.results()
-    elapsed = time.perf_counter() - start
-    results["scan"] = {
-        "total_ms": elapsed * 1000,
-        "records": len(records),
-        "ops_per_sec": len(records) / elapsed if elapsed > 0 else 0,
-    }
+    elapsed = time.perf_counter() - t0
+    results["scan"] = _bulk_summary(len(records), elapsed)
 
-    # Cleanup
+    # cleanup
     for i in range(count):
         client.remove((NAMESPACE, SET_NAME, f"c_{i}"))
     client.close()
@@ -129,47 +147,122 @@ def bench_aerospike_c(host: str, port: int, count: int) -> dict | None:
     return results
 
 
-def _summarize(times: list[float]) -> dict:
-    ms = [t * 1000 for t in times]
-    total = sum(times)
-    return {
-        "count": len(times),
-        "total_ms": total * 1000,
-        "avg_ms": statistics.mean(ms),
-        "p50_ms": statistics.median(ms),
-        "p99_ms": sorted(ms)[int(len(ms) * 0.99)] if len(ms) >= 100 else max(ms),
-        "ops_per_sec": len(times) / total if total > 0 else 0,
-    }
+# ── comparison output ────────────────────────────────────────
 
 
-def print_results(name: str, results: dict):
-    print(f"\n{'=' * 60}")
-    print(f"  {name}")
-    print(f"{'=' * 60}")
-    for op, data in results.items():
-        print(f"\n  [{op}]")
-        for k, v in data.items():
-            if isinstance(v, float):
-                print(f"    {k:>15s}: {v:>12.2f}")
-            else:
-                print(f"    {k:>15s}: {v:>12}")
+def _speedup(c_val: float, rust_val: float) -> str:
+    """Return speedup string like '2.3x faster' or '0.8x slower'."""
+    if rust_val <= 0 or c_val <= 0:
+        return "N/A"
+    ratio = c_val / rust_val
+    if ratio >= 1.0:
+        return f"{ratio:.2f}x faster"
+    return f"{1 / ratio:.2f}x slower"
+
+
+def print_comparison(rust: dict, c: dict | None):
+    ops = ["put", "get", "batch_get", "scan"]
+
+    # Header
+    print()
+    if c is not None:
+        hdr = (
+            f"{'Operation':<12} | "
+            f"{'aerospike-py':>14} | "
+            f"{'official C':>14} | "
+            f"{'Speedup':>14}"
+        )
+        sep = "-" * len(hdr)
+        print(sep)
+        print("  Sync Benchmark: aerospike-py (Rust) vs official C client")
+        print(sep)
+
+        # avg latency table
+        print(f"\n  Avg Latency (ms) - lower is better")
+        print(f"  {'':─<60}")
+        print(f"  {hdr}")
+        print(f"  {'':─<60}")
+        for op in ops:
+            r = rust[op]["avg_ms"]
+            cv = c[op]["avg_ms"]
+            sp = _speedup(cv, r)  # latency: lower = faster, so c/rust
+            print(f"  {op:<12} | {r:>12.3f}ms | {cv:>12.3f}ms | {sp:>14}")
+
+        # throughput table
+        print(f"\n  Throughput (ops/sec) - higher is better")
+        print(f"  {'':─<60}")
+        print(f"  {hdr}")
+        print(f"  {'':─<60}")
+        for op in ops:
+            r = rust[op]["ops_per_sec"]
+            cv = c[op]["ops_per_sec"]
+            sp = _speedup(r, cv)  # throughput: higher = faster, so rust/c
+            print(
+                f"  {op:<12} | {r:>11,.0f}/s | {cv:>11,.0f}/s | {sp:>14}"
+            )
+
+        # percentile table (only for ops with percentiles)
+        pct_ops = [op for op in ops if rust[op].get("p50_ms") is not None]
+        if pct_ops:
+            print(f"\n  P50 / P99 Latency (ms)")
+            print(f"  {'':─<74}")
+            phdr = (
+                f"{'Operation':<12} | "
+                f"{'aerospike-py p50':>16} | "
+                f"{'C client p50':>14} | "
+                f"{'aerospike-py p99':>16} | "
+                f"{'C client p99':>14}"
+            )
+            print(f"  {phdr}")
+            print(f"  {'':─<74}")
+            for op in pct_ops:
+                rp50 = rust[op]["p50_ms"]
+                cp50 = c[op]["p50_ms"]
+                rp99 = rust[op]["p99_ms"]
+                cp99 = c[op]["p99_ms"]
+                print(
+                    f"  {op:<12} | "
+                    f"{rp50:>14.3f}ms | {cp50:>12.3f}ms | "
+                    f"{rp99:>14.3f}ms | {cp99:>12.3f}ms"
+                )
+    else:
+        print("=" * 60)
+        print("  [!] Official C client not installed.")
+        print("      pip install aerospike  to enable comparison.")
+        print("=" * 60)
+        print("\n  aerospike-py results (standalone):")
+        print(f"  {'Operation':<12} | {'Avg Latency':>14} | {'Throughput':>14}")
+        print(f"  {'':─<48}")
+        for op in ops:
+            r = rust[op]
+            print(
+                f"  {op:<12} | {r['avg_ms']:>12.3f}ms | {r['ops_per_sec']:>11,.0f}/s"
+            )
+
+    print()
+
+
+# ── main ─────────────────────────────────────────────────────
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sync benchmark")
-    parser.add_argument("--count", type=int, default=1000, help="Number of operations")
-    parser.add_argument("--host", default="127.0.0.1", help="Aerospike host")
-    parser.add_argument("--port", type=int, default=3000, help="Aerospike port")
+    parser = argparse.ArgumentParser(
+        description="Sync benchmark: aerospike-py vs official C client"
+    )
+    parser.add_argument("--count", type=int, default=1000)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=3000)
     args = parser.parse_args()
 
-    print(f"Benchmark: {args.count} operations @ {args.host}:{args.port}")
+    print(f"Sync Benchmark: {args.count} ops @ {args.host}:{args.port}\n")
 
-    rust_results = bench_aerospike_py(args.host, args.port, args.count)
-    print_results("aerospike-py (Rust/PyO3)", rust_results)
+    print("Running aerospike-py (Rust) ...")
+    rust_results = bench_rust(args.host, args.port, args.count)
 
-    c_results = bench_aerospike_c(args.host, args.port, args.count)
-    if c_results:
-        print_results("aerospike (C client)", c_results)
+    print("Running official C client ...")
+    c_results = bench_c(args.host, args.port, args.count)
+
+    print_comparison(rust_results, c_results)
 
 
 if __name__ == "__main__":
