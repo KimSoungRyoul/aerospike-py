@@ -8,7 +8,9 @@ import aerospike_py
 @pytest.fixture(scope="module")
 def client():
     try:
-        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client(
+            {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
+        ).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c
@@ -200,11 +202,15 @@ class TestQueryScanWorkflow:
 
         for i in range(10):
             key = (self.ns, self.set_name, f"qs_{i}")
-            client.put(key, {
-                "id": i,
-                "category": "even" if i % 2 == 0 else "odd",
-                "value": i * 100,
-            }, policy={"key": aerospike_py.POLICY_KEY_SEND})
+            client.put(
+                key,
+                {
+                    "id": i,
+                    "category": "even" if i % 2 == 0 else "odd",
+                    "value": i * 100,
+                },
+                policy={"key": aerospike_py.POLICY_KEY_SEND},
+            )
             self.keys.append(key)
 
         yield
@@ -414,7 +420,9 @@ class TestExistsPolicy:
         key = ("test", "scenario", "create_only_ok")
         cleanup.append(key)
 
-        client.put(key, {"val": 1}, policy={"exists": aerospike_py.POLICY_EXISTS_CREATE_ONLY})
+        client.put(
+            key, {"val": 1}, policy={"exists": aerospike_py.POLICY_EXISTS_CREATE_ONLY}
+        )
         _, _, bins = client.get(key)
         assert bins["val"] == 1
 
@@ -426,7 +434,11 @@ class TestExistsPolicy:
         client.put(key, {"val": 1})
 
         with pytest.raises(aerospike_py.RecordExistsError):
-            client.put(key, {"val": 2}, policy={"exists": aerospike_py.POLICY_EXISTS_CREATE_ONLY})
+            client.put(
+                key,
+                {"val": 2},
+                policy={"exists": aerospike_py.POLICY_EXISTS_CREATE_ONLY},
+            )
 
         # Value should remain unchanged
         _, _, bins = client.get(key)
@@ -438,7 +450,9 @@ class TestExistsPolicy:
         cleanup.append(key)
 
         client.put(key, {"val": 1})
-        client.put(key, {"val": 2}, policy={"exists": aerospike_py.POLICY_EXISTS_UPDATE})
+        client.put(
+            key, {"val": 2}, policy={"exists": aerospike_py.POLICY_EXISTS_UPDATE}
+        )
         _, _, bins = client.get(key)
         assert bins["val"] == 2
 
@@ -447,7 +461,9 @@ class TestExistsPolicy:
         key = ("test", "scenario", "update_only_fail")
 
         with pytest.raises(aerospike_py.AerospikeError):
-            client.put(key, {"val": 1}, policy={"exists": aerospike_py.POLICY_EXISTS_UPDATE})
+            client.put(
+                key, {"val": 1}, policy={"exists": aerospike_py.POLICY_EXISTS_UPDATE}
+            )
 
 
 class TestErrorHandling:
@@ -477,7 +493,9 @@ class TestErrorHandling:
 
     def test_operations_after_close(self, client):
         """Create a separate client, close it, then try operations."""
-        c2 = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c2 = aerospike_py.client(
+            {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
+        ).connect()
         c2.close()
 
         with pytest.raises(aerospike_py.AerospikeError):
@@ -495,7 +513,9 @@ class TestErrorHandling:
 
     def test_double_close_is_safe(self, client):
         """Closing a client twice should not crash."""
-        c2 = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c2 = aerospike_py.client(
+            {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
+        ).connect()
         c2.close()
         c2.close()  # Should not raise
 
@@ -649,7 +669,9 @@ class TestMultiClientScenario:
 
     def test_two_clients_same_record(self, client, cleanup):
         """Two clients can read/write the same record."""
-        c2 = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c2 = aerospike_py.client(
+            {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
+        ).connect()
         try:
             key = ("test", "scenario", "multi_client")
             cleanup.append(key)
@@ -666,7 +688,9 @@ class TestMultiClientScenario:
 
     def test_reconnect_after_close(self, cleanup):
         """Client can reconnect after close."""
-        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client(
+            {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
+        ).connect()
         key = ("test", "scenario", "reconnect")
         cleanup.append(key)
 
@@ -674,7 +698,9 @@ class TestMultiClientScenario:
         c.close()
 
         # Reconnect
-        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client(
+            {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
+        ).connect()
         try:
             _, _, bins = c.get(key)
             assert bins["val"] == 1

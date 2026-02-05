@@ -9,7 +9,9 @@ import aerospike_py
 def client():
     """Create and connect a client for the test module."""
     try:
-        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client(
+            {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
+        ).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c
@@ -232,10 +234,7 @@ class TestTruncate:
         Note: truncate is asynchronous on the server side; records
         may not be physically removed immediately.
         """
-        keys = [
-            ("test", "trunc_test", f"trunc_{i}")
-            for i in range(3)
-        ]
+        keys = [("test", "trunc_test", f"trunc_{i}") for i in range(3)]
         for key in keys:
             client.put(key, {"v": 1})
 

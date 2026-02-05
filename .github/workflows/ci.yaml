@@ -57,14 +57,21 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
-        run: pip install maturin pytest pytest-asyncio
+      - name: Create venv and install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install maturin pytest pytest-asyncio
 
       - name: Build
-        run: maturin develop
+        run: |
+          source .venv/bin/activate
+          maturin develop
 
       - name: Unit tests
-        run: pytest tests/unit/ -v
+        run: |
+          source .venv/bin/activate
+          pytest tests/unit/ -v
 
   integration:
     name: Integration Tests
@@ -95,11 +102,16 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
-        run: pip install maturin pytest pytest-asyncio
+      - name: Create venv and install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install maturin pytest pytest-asyncio
 
       - name: Build
-        run: maturin develop
+        run: |
+          source .venv/bin/activate
+          maturin develop
 
       - name: Wait for Aerospike
         run: |
@@ -113,4 +125,6 @@ jobs:
           done
 
       - name: Run all tests
-        run: pytest tests/ -v
+        run: |
+          source .venv/bin/activate
+          pytest tests/ -v

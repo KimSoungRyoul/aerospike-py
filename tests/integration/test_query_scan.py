@@ -10,7 +10,9 @@ from aerospike_py import predicates as p
 @pytest.fixture(scope="module")
 def client():
     try:
-        c = aerospike_py.client({"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}).connect()
+        c = aerospike_py.client(
+            {"hosts": [("127.0.0.1", 3000)], "cluster_name": "docker"}
+        ).connect()
     except Exception:
         pytest.skip("Aerospike server not available")
     yield c
@@ -23,7 +25,9 @@ def seed_data(client):
     keys = []
     for i in range(10):
         key = ("test", "query_test", f"qkey_{i}")
-        client.put(key, {"name": f"user_{i}", "age": 20 + i, "group": "A" if i < 5 else "B"})
+        client.put(
+            key, {"name": f"user_{i}", "age": 20 + i, "group": "A" if i < 5 else "B"}
+        )
         keys.append(key)
 
     # Create secondary index on 'age'

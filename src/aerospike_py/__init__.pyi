@@ -64,9 +64,7 @@ class Client:
     def select(
         self, key: Key, bins: list[str], policy: Optional[PolicyDict] = None
     ) -> Record: ...
-    def exists(
-        self, key: Key, policy: Optional[PolicyDict] = None
-    ) -> ExistsResult: ...
+    def exists(self, key: Key, policy: Optional[PolicyDict] = None) -> ExistsResult: ...
     def remove(
         self,
         key: Key,
@@ -205,9 +203,7 @@ class Client:
         udf_type: int = 0,
         policy: Optional[PolicyDict] = None,
     ) -> None: ...
-    def udf_remove(
-        self, module: str, policy: Optional[PolicyDict] = None
-    ) -> None: ...
+    def udf_remove(self, module: str, policy: Optional[PolicyDict] = None) -> None: ...
     def apply(
         self,
         key: Key,
