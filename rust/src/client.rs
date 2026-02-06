@@ -918,6 +918,7 @@ impl PyClient {
     }
 
     /// Create a new role with the given privileges.
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (role, privileges, policy=None, whitelist=None, read_quota=0, write_quota=0))]
     fn admin_create_role(
         &self,
@@ -1333,6 +1334,7 @@ impl PyClient {
     }
 
     /// Internal helper for index creation
+    #[allow(clippy::too_many_arguments)]
     fn create_index(
         &self,
         py: Python<'_>,
