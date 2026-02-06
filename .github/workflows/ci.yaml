@@ -41,7 +41,7 @@ jobs:
         run: uv sync --dev
 
       - name: Run pre-commit
-        uses: pre-commit/action@v3.0.1
+        run: uvx pre-commit run --all-files
 
   build:
     name: Build & Unit Tests
