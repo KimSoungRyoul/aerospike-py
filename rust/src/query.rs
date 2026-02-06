@@ -37,16 +37,19 @@ enum Predicate {
         val: i64,
         col_type: i32,
     },
+    #[allow(dead_code)]
     GeoWithinRegion {
         bin: String,
         geojson: String,
     },
+    #[allow(dead_code)]
     GeoWithinRadius {
         bin: String,
         lat: f64,
         lng: f64,
         radius: f64,
     },
+    #[allow(dead_code)]
     GeoContainsPoint {
         bin: String,
         geojson: String,
