@@ -24,25 +24,24 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: "rust-lint"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
+          enable-cache: true
 
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Ruff check
-        run: uv run ruff check src/ tests/
-
-      - name: Ruff format check
-        run: uv run ruff format --check src/ tests/
-
-      - name: Cargo fmt check
-        run: cargo fmt --manifest-path rust/Cargo.toml --check
-
-      - name: Cargo clippy
-        run: cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
 
   build:
     name: Build & Unit Tests
@@ -53,10 +52,18 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: "rust-build"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
+          enable-cache: true
 
       - name: Install dependencies
         run: uv sync --dev
@@ -91,10 +98,18 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: "rust-build"
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
+          enable-cache: true
 
       - name: Install dependencies
         run: uv sync --dev
