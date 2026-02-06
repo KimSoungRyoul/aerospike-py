@@ -28,26 +28,32 @@ source = { editable = "." }
 bench = [
     { name = "aerospike" },
 ]
+docs = [
+    { name = "mkdocs-material" },
+]
+
+[package.dev-dependencies]
 dev = [
     { name = "maturin" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
-docs = [
-    { name = "mkdocs-material" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "aerospike", marker = "extra == 'bench'" },
-    { name = "maturin", marker = "extra == 'dev'", specifier = ">=1.9,<2" },
     { name = "mkdocs-material", marker = "extra == 'docs'" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "ruff", marker = "extra == 'dev'" },
 ]
-provides-extras = ["bench", "dev", "docs"]
+provides-extras = ["bench", "docs"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "maturin", specifier = ">=1.9,<2" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
 
 [[package]]
 name = "babel"
