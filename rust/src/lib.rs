@@ -9,6 +9,7 @@ pub mod expressions;
 mod numpy_support;
 mod operations;
 mod policy;
+mod profiling;
 pub mod query;
 mod record_helpers;
 mod runtime;
@@ -30,6 +31,9 @@ fn _aerospike(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register constants
     constants::register_constants(m)?;
+
+    // Register profiling functions
+    profiling::register_profiling_functions(m)?;
 
     Ok(())
 }
