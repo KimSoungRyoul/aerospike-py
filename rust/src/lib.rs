@@ -12,6 +12,7 @@ mod policy;
 pub mod query;
 mod record_helpers;
 mod runtime;
+mod telemetry;
 mod types;
 
 /// Native Aerospike Python client module
@@ -30,6 +31,9 @@ fn _aerospike(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register constants
     constants::register_constants(m)?;
+
+    // Register telemetry functions
+    telemetry::register_telemetry_functions(m)?;
 
     Ok(())
 }

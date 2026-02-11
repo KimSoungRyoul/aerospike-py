@@ -226,6 +226,7 @@ from aerospike_py.numpy_batch import NumpyBatchRecords  # noqa: F401
 from aerospike_py import list_operations  # noqa: F401
 from aerospike_py import map_operations  # noqa: F401
 from aerospike_py import exp  # noqa: F401
+from aerospike_py.logging import set_log_level, flush_logs  # noqa: F401
 
 try:
     from importlib.metadata import PackageNotFoundError
@@ -341,6 +342,8 @@ __all__ = [
     "BatchRecords",
     "NumpyBatchRecords",
     "client",
+    "set_log_level",
+    "flush_logs",
     "__version__",
     # Submodules
     "exception",
