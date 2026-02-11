@@ -36,6 +36,8 @@ Issues = "https://github.com/KimSoungRyoul/aerospike-py/issues"
 
 [project.optional-dependencies]
 numpy = ["numpy>=2.0"]
+otel = ["opentelemetry-api>=1.20", "opentelemetry-sdk>=1.20"]
+otel-export = ["opentelemetry-api>=1.20", "opentelemetry-sdk>=1.20", "opentelemetry-exporter-otlp>=1.20"]
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio", "ruff", "maturin>=1.9,<2", "numpy>=2.0", "pyright>=1.1"]

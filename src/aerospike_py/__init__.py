@@ -226,6 +226,7 @@ from aerospike_py.numpy_batch import NumpyBatchRecords  # noqa: F401
 from aerospike_py import list_operations  # noqa: F401
 from aerospike_py import map_operations  # noqa: F401
 from aerospike_py import exp  # noqa: F401
+from aerospike_py.telemetry import TelemetryConfig, configure_telemetry, shutdown_telemetry  # noqa: F401
 
 try:
     from importlib.metadata import PackageNotFoundError
@@ -348,6 +349,10 @@ __all__ = [
     "list_operations",
     "map_operations",
     "exp",
+    # Telemetry
+    "TelemetryConfig",
+    "configure_telemetry",
+    "shutdown_telemetry",
     # Exception classes
     "AerospikeError",
     "ClientError",
