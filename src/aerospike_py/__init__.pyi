@@ -69,6 +69,19 @@ class Client:
     def close(self) -> None: ...
     def get_node_names(self) -> list[str]: ...
 
+    # -- Info --
+    def info(
+        self,
+        commands: list[str],
+        node_name: str | None = None,
+        policy: PolicyDict | None = None,
+    ) -> dict[str, str]: ...
+    def info_all(
+        self,
+        commands: list[str],
+        policy: PolicyDict | None = None,
+    ) -> dict[str, dict[str, str]]: ...
+
     # -- CRUD --
     def put(
         self,
@@ -319,6 +332,19 @@ class AsyncClient:
     def is_connected(self) -> bool: ...
     async def close(self) -> None: ...
     async def get_node_names(self) -> list[str]: ...
+
+    # -- Info --
+    async def info(
+        self,
+        commands: list[str],
+        node_name: str | None = None,
+        policy: PolicyDict | None = None,
+    ) -> dict[str, str]: ...
+    async def info_all(
+        self,
+        commands: list[str],
+        policy: PolicyDict | None = None,
+    ) -> dict[str, dict[str, str]]: ...
 
     # -- CRUD --
     async def put(

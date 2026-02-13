@@ -1406,6 +1406,88 @@ impl PyClient {
         })
     }
 
+    // ── Info ─────────────────────────────────────────────────────
+
+    /// Send info commands to a specific node (or the first node if node_name is None).
+    /// Returns a dict mapping each command to its response string.
+    #[pyo3(signature = (commands, node_name=None, policy=None))]
+    fn info(
+        &self,
+        py: Python<'_>,
+        commands: Vec<String>,
+        node_name: Option<String>,
+        policy: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Py<PyAny>> {
+        let client = self.get_client()?.clone();
+        let admin_policy = parse_admin_policy(policy)?;
+        debug!("info: commands={:?} node_name={:?}", commands, node_name);
+
+        let result = py.detach(|| {
+            RUNTIME.block_on(async {
+                let node = match &node_name {
+                    Some(name) => client.get_node(name).await.map_err(as_to_pyerr)?,
+                    None => {
+                        let nodes = client.nodes().await;
+                        nodes.into_iter().next().ok_or_else(|| {
+                            crate::errors::ClusterError::new_err("No nodes available in cluster")
+                        })?
+                    }
+                };
+                let cmd_refs: Vec<&str> = commands.iter().map(|s| s.as_str()).collect();
+                node.info(&admin_policy, &cmd_refs)
+                    .await
+                    .map_err(as_to_pyerr)
+            })
+        })?;
+
+        let dict = PyDict::new(py);
+        for (k, v) in &result {
+            dict.set_item(k, v)?;
+        }
+        Ok(dict.into_any().unbind())
+    }
+
+    /// Send info commands to all nodes in the cluster.
+    /// Returns a dict mapping node_name -> {command -> response}.
+    #[pyo3(signature = (commands, policy=None))]
+    fn info_all(
+        &self,
+        py: Python<'_>,
+        commands: Vec<String>,
+        policy: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Py<PyAny>> {
+        let client = self.get_client()?.clone();
+        let admin_policy = parse_admin_policy(policy)?;
+        debug!("info_all: commands={:?}", commands);
+
+        let results: Vec<(String, std::collections::HashMap<String, String>)> =
+            py.detach(|| {
+                RUNTIME.block_on(async {
+                    let nodes = client.nodes().await;
+                    let mut all_results = Vec::new();
+                    for node in &nodes {
+                        let cmd_refs: Vec<&str> = commands.iter().map(|s| s.as_str()).collect();
+                        let info_result = node
+                            .info(&admin_policy, &cmd_refs)
+                            .await
+                            .map_err(as_to_pyerr)?;
+                        all_results.push((node.name().to_owned(), info_result));
+                    }
+                    Ok::<_, PyErr>(all_results)
+                })
+            })?;
+
+        let outer_dict = PyDict::new(py);
+        for (node_name, info_map) in &results {
+            let inner_dict = PyDict::new(py);
+            for (k, v) in info_map {
+                inner_dict.set_item(k, v)?;
+            }
+            outer_dict.set_item(node_name, inner_dict)?;
+        }
+        Ok(outer_dict.into_any().unbind())
+    }
+
     // ── Batch operations ──────────────────────────────────────────
 
     /// Read multiple records. Returns BatchRecords, or NumpyBatchRecords when dtype is provided.

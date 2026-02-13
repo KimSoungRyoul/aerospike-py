@@ -858,6 +858,91 @@ impl PyAsyncClient {
         })
     }
 
+    // ── Info ─────────────────────────────────────────────────────
+
+    /// Send info commands to a specific node (or the first node if node_name is None) (async).
+    /// Returns a dict mapping each command to its response string.
+    #[pyo3(signature = (commands, node_name=None, policy=None))]
+    fn info<'py>(
+        &self,
+        py: Python<'py>,
+        commands: Vec<String>,
+        node_name: Option<String>,
+        policy: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.get_client()?;
+        let admin_policy = parse_admin_policy(policy)?;
+        debug!(
+            "async info: commands={:?} node_name={:?}",
+            commands, node_name
+        );
+
+        future_into_py(py, async move {
+            let node = match &node_name {
+                Some(name) => client.get_node(name).await.map_err(as_to_pyerr)?,
+                None => {
+                    let nodes = client.nodes().await;
+                    nodes.into_iter().next().ok_or_else(|| {
+                        crate::errors::ClusterError::new_err("No nodes available in cluster")
+                    })?
+                }
+            };
+            let cmd_refs: Vec<&str> = commands.iter().map(|s| s.as_str()).collect();
+            let result = node
+                .info(&admin_policy, &cmd_refs)
+                .await
+                .map_err(as_to_pyerr)?;
+
+            Python::attach(|py| {
+                let dict = PyDict::new(py);
+                for (k, v) in &result {
+                    dict.set_item(k, v)?;
+                }
+                Ok(dict.into_any().unbind())
+            })
+        })
+    }
+
+    /// Send info commands to all nodes in the cluster (async).
+    /// Returns a dict mapping node_name -> {command -> response}.
+    #[pyo3(signature = (commands, policy=None))]
+    fn info_all<'py>(
+        &self,
+        py: Python<'py>,
+        commands: Vec<String>,
+        policy: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.get_client()?;
+        let admin_policy = parse_admin_policy(policy)?;
+        debug!("async info_all: commands={:?}", commands);
+
+        future_into_py(py, async move {
+            let nodes = client.nodes().await;
+            let mut all_results: Vec<(String, std::collections::HashMap<String, String>)> =
+                Vec::new();
+            for node in &nodes {
+                let cmd_refs: Vec<&str> = commands.iter().map(|s| s.as_str()).collect();
+                let info_result = node
+                    .info(&admin_policy, &cmd_refs)
+                    .await
+                    .map_err(as_to_pyerr)?;
+                all_results.push((node.name().to_owned(), info_result));
+            }
+
+            Python::attach(|py| {
+                let outer_dict = PyDict::new(py);
+                for (node_name, info_map) in &all_results {
+                    let inner_dict = PyDict::new(py);
+                    for (k, v) in info_map {
+                        inner_dict.set_item(k, v)?;
+                    }
+                    outer_dict.set_item(node_name, inner_dict)?;
+                }
+                Ok(outer_dict.into_any().unbind())
+            })
+        })
+    }
+
     // ── Batch ─────────────────────────────────────────────────
 
     /// Read multiple records (async). Returns BatchRecords, or NumpyBatchRecords when dtype is provided.
