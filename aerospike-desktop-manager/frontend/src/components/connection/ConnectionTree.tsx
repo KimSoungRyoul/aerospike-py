@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ConnectionStatus, SetInfo } from "@/api/types";
 import { useConnectionStore } from "@/stores/connectionStore";
@@ -51,6 +51,11 @@ export function ConnectionTree({ connection }: Props) {
   const [namespaces, setNamespaces] = useState<NamespaceNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const toggle = async () => {
     if (!expanded && namespaces.length === 0) {
@@ -74,6 +79,7 @@ export function ConnectionTree({ connection }: Props) {
         if (ns.name !== nsName) return ns;
         if (!ns.expanded && ns.sets.length === 0) {
           clusterApi.getSets(connection.id, nsName).then((sets) => {
+            if (!mountedRef.current) return;
             setNamespaces((p) =>
               p.map((n) => (n.name === nsName ? { ...n, sets } : n))
             );

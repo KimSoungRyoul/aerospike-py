@@ -1,7 +1,5 @@
-import { useState, useRef, useEffect } from "react";
 import { useConnectionStore } from "@/stores/connectionStore";
-import { formatApiError } from "@/api/client";
-import { executeTerminalCommand } from "@/api/metrics";
+import { useTerminal } from "@/hooks/useTerminal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,44 +7,11 @@ import { Separator } from "@/components/ui/separator";
 import { Send, Minimize2 } from "lucide-react";
 import { useUIStore } from "@/stores/uiStore";
 
-interface HistoryEntry {
-  id: number;
-  command: string;
-  result: string;
-  isError: boolean;
-}
-
-let entryCounter = 0;
-
 export function TerminalPanel() {
   const { activeConnectionId } = useConnectionStore();
   const { toggleTerminal } = useUIStore();
-  const [command, setCommand] = useState("");
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history]);
-
-  const execute = async () => {
-    if (!command.trim() || !activeConnectionId) return;
-    setLoading(true);
-    try {
-      const result = await executeTerminalCommand(activeConnectionId, command);
-      const formatted = JSON.stringify(result.parsed, null, 2);
-      setHistory((h) => [...h, { id: ++entryCounter, command, result: formatted, isError: false }]);
-    } catch (e) {
-      setHistory((h) => [
-        ...h,
-        { id: ++entryCounter, command, result: formatApiError(e), isError: true },
-      ]);
-    } finally {
-      setCommand("");
-      setLoading(false);
-    }
-  };
+  const { command, setCommand, history, loading, bottomRef, execute, handleKeyDown } =
+    useTerminal(activeConnectionId ?? undefined);
 
   return (
     <div className="flex h-64 flex-col">
@@ -92,7 +57,7 @@ export function TerminalPanel() {
           }
           value={command}
           onChange={(e) => setCommand(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && execute()}
+          onKeyDown={handleKeyDown}
           disabled={!activeConnectionId || loading}
           className="font-mono text-sm"
           aria-label="Terminal command"

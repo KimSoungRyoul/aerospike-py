@@ -21,7 +21,7 @@ def get_client(
     manager: ConnectionManager = Depends(get_connection_manager),
 ) -> aerospike_py.AsyncClient:
     """Resolve connection ID to an active AsyncClient."""
-    mc = manager._connections.get(conn_id)
+    mc = manager.get_managed_connection(conn_id)
     if not mc:
         raise ConnectionNotFoundError(f"Connection '{conn_id}' not found")
     if not mc.client or not mc.connected:

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ── Shared key model ──────────────────────────────────────────
 
@@ -77,8 +77,8 @@ class RemoveRequest(BaseModel):
 class ScanRequest(BaseModel):
     namespace: str
     set: str
-    page: int = 1
-    page_size: int = 50
+    page: int = Field(1, gt=0)
+    page_size: int = Field(50, gt=0, le=10000)
 
 
 # ── Operations requests ──────────────────────────────────────

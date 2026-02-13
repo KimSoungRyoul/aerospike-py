@@ -13,11 +13,10 @@ from models.record import (
     RemoveBinRequest,
     TouchRequest,
 )
+from utils.constants import SEND_KEY_POLICY
 from utils.serialization import format_bins, serialize_key
 
 router = APIRouter()
-
-SEND_KEY_POLICY = {"key": aerospike_py.POLICY_KEY_SEND}
 
 
 @router.post("/touch")

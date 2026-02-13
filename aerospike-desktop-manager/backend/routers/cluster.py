@@ -9,31 +9,35 @@ from utils.info_parser import parse_info_list, parse_info_pairs
 
 router = APIRouter()
 
+_CLUSTER_INFO_COMMANDS = ["node", "build", "edition", "namespaces"]
+
+
+def _build_node_list(result: dict) -> list[NodeInfo]:
+    return [
+        NodeInfo(
+            name=node_name,
+            build=info_dict.get("build", ""),
+            edition=info_dict.get("edition", ""),
+            namespaces=parse_info_list(info_dict.get("namespaces", "")),
+        )
+        for node_name, info_dict in result.items()
+    ]
+
 
 @router.get("", response_model=ClusterOverview)
 async def get_cluster_overview(
     client: aerospike_py.AsyncClient = Depends(get_client),
 ):
-    result = await client.info_all(["node", "build", "edition", "namespaces"])
-    nodes = []
-    all_namespaces = set()
+    result = await client.info_all(_CLUSTER_INFO_COMMANDS)
+    nodes = _build_node_list(result)
+
+    all_namespaces: set[str] = set()
     edition = ""
     build = ""
-
-    for node_name, info_dict in result.items():
-        ns_str = info_dict.get("namespaces", "")
-        ns_list = parse_info_list(ns_str)
-        all_namespaces.update(ns_list)
-        edition = info_dict.get("edition", edition)
-        build = info_dict.get("build", build)
-        nodes.append(
-            NodeInfo(
-                name=node_name,
-                build=info_dict.get("build", ""),
-                edition=info_dict.get("edition", ""),
-                namespaces=ns_list,
-            )
-        )
+    for node in nodes:
+        all_namespaces.update(node.namespaces)
+        edition = node.edition or edition
+        build = node.build or build
 
     return ClusterOverview(
         nodes=nodes,
@@ -48,19 +52,8 @@ async def get_cluster_overview(
 async def get_cluster_nodes(
     client: aerospike_py.AsyncClient = Depends(get_client),
 ):
-    result = await client.info_all(["node", "build", "edition", "namespaces"])
-    nodes = []
-    for node_name, info_dict in result.items():
-        ns_list = parse_info_list(info_dict.get("namespaces", ""))
-        nodes.append(
-            NodeInfo(
-                name=node_name,
-                build=info_dict.get("build", ""),
-                edition=info_dict.get("edition", ""),
-                namespaces=ns_list,
-            )
-        )
-    return nodes
+    result = await client.info_all(_CLUSTER_INFO_COMMANDS)
+    return _build_node_list(result)
 
 
 @router.get("/nodes/{node_name}")

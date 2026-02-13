@@ -31,7 +31,16 @@ export function ConnectionDialog({ open, onOpenChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const portNum = parseInt(port);
+  const isValid =
+    name.trim().length > 0 &&
+    host.trim().length > 0 &&
+    !isNaN(portNum) &&
+    portNum >= 1 &&
+    portNum <= 65535;
+
   const handleConnect = async () => {
+    if (!isValid) return;
     setLoading(true);
     setError("");
     try {
@@ -120,7 +129,7 @@ export function ConnectionDialog({ open, onOpenChange }: Props) {
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleConnect} disabled={loading}>
+          <Button onClick={handleConnect} disabled={loading || !isValid}>
             {loading ? "Connecting..." : "Connect"}
           </Button>
         </DialogFooter>

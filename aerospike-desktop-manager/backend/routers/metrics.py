@@ -41,7 +41,7 @@ async def metrics_stream(
     manager = get_connection_manager()
     await websocket.accept()
 
-    mc = manager._connections.get(conn_id)
+    mc = manager.get_managed_connection(conn_id)
     if not mc or not mc.client or not mc.connected:
         await websocket.close(code=4004, reason="Connection not found")
         return
@@ -57,10 +57,12 @@ async def metrics_stream(
                 ns_result = await client.info(["namespaces"])
                 namespaces = parse_info_list(ns_result.get("namespaces", ""))
 
-                ns_stats = {}
-                for ns in namespaces:
+                async def _fetch_ns(ns: str) -> tuple[str, dict]:
                     ns_info = await client.info([f"namespace/{ns}"])
-                    ns_stats[ns] = parse_info_pairs(ns_info.get(f"namespace/{ns}", ""))
+                    return ns, parse_info_pairs(ns_info.get(f"namespace/{ns}", ""))
+
+                ns_results = await asyncio.gather(*[_fetch_ns(ns) for ns in namespaces])
+                ns_stats = dict(ns_results)
 
                 payload = {
                     "type": "metrics",

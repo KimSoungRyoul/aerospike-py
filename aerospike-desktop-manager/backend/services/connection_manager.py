@@ -38,12 +38,17 @@ class ConnectionManager:
         )
         return profile.id
 
+    def get_managed_connection(self, conn_id: str) -> ManagedConnection | None:
+        return self._connections.get(conn_id)
+
     async def disconnect(self, conn_id: str) -> None:
         mc = self._connections.get(conn_id)
         if mc and mc.client:
-            await mc.client.close()
-            mc.connected = False
-            mc.client = None
+            try:
+                await mc.client.close()
+            finally:
+                mc.connected = False
+                mc.client = None
 
     async def remove(self, conn_id: str) -> None:
         await self.disconnect(conn_id)
@@ -81,7 +86,6 @@ class ConnectionManager:
             info = await client.info(["namespaces"])
             ns_list = info.get("namespaces", "").split(";")
             ns_list = [ns for ns in ns_list if ns]
-            await client.close()
             return ConnectionTestResult(
                 success=True,
                 message=f"Connected to {len(node_names)} node(s)",
@@ -89,11 +93,12 @@ class ConnectionManager:
                 namespaces=ns_list,
             )
         except Exception as e:
+            return ConnectionTestResult(success=False, message=str(e))
+        finally:
             try:
                 await client.close()
             except Exception:
                 pass
-            return ConnectionTestResult(success=False, message=str(e))
 
     async def update_profile(self, conn_id: str, profile: ConnectionProfile) -> None:
         mc = self._connections.get(conn_id)

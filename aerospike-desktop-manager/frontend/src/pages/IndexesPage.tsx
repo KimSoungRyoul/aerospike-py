@@ -70,11 +70,13 @@ export function IndexesPage() {
 
   useEffect(() => {
     if (!connId || !selectedNs) return;
+    let cancelled = false;
     setLoading(true);
     indexesApi.listIndexes(connId, selectedNs)
-      .then(setIndexes)
-      .catch((e) => setError(formatApiError(e)))
-      .finally(() => setLoading(false));
+      .then((data) => { if (!cancelled) setIndexes(data); })
+      .catch((e) => { if (!cancelled) setError(formatApiError(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [connId, selectedNs]);
 
   const handleCreate = async () => {

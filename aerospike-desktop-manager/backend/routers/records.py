@@ -15,13 +15,11 @@ from models.record import (
     ScanResult,
     SelectRequest,
 )
+from utils.constants import SEND_KEY_POLICY
 from utils.key_helpers import parse_pk
 from utils.serialization import format_bins, serialize_key
 
 router = APIRouter()
-
-# Desktop Manager always stores the original PK so it can be displayed on read/scan.
-SEND_KEY_POLICY = {"key": aerospike_py.POLICY_KEY_SEND}
 
 
 @router.post("/put")
