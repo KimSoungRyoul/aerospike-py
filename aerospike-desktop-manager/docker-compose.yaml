@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: aerospike-desktop-manager/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ADM_CORS_ORIGINS=["http://localhost:5173","http://localhost:8000"]
+      - AEROSPIKE_HOSTS=host.docker.internal:3000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+  aerospike:
+    image: aerospike:ce-8.1.0.3_1
+    container_name: aerospike
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "3002:3002"
+    shm_size: 1g
+    environment:
+      NAMESPACE: test
+      DEFAULT_TTL: "2592000"
+    volumes:
+      - ../scripts/aerospike.template.conf:/etc/aerospike/aerospike.template.conf
+
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"

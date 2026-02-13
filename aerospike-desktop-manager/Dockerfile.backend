@@ -1,0 +1,53 @@
+# ── Stage 1: Build aerospike-py from source (Rust + maturin) ──
+FROM python:3.12-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl build-essential pkg-config libssl-dev protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN pip install --no-cache-dir "maturin>=1.9,<2"
+
+# Copy aerospike-py source for wheel build
+WORKDIR /build/aerospike-py
+COPY pyproject.toml Cargo.toml ./
+COPY rust/ ./rust/
+COPY src/ ./src/
+COPY README.md* ./
+# Create README.md if not present (required by pyproject.toml)
+RUN touch README.md
+
+RUN maturin build --release --out /wheels
+
+# ── Stage 2: Runtime ──────────────────────────────────────────
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install uv for fast dependency management
+RUN pip install --no-cache-dir uv
+
+# Install aerospike-py wheel from stage 1
+COPY --from=builder /wheels/*.whl /tmp/
+RUN uv pip install --system /tmp/*.whl && rm -rf /tmp/*.whl
+
+# Install backend dependencies
+RUN uv pip install --system \
+    "fastapi>=0.115" \
+    "uvicorn[standard]>=0.34" \
+    "pydantic>=2.0" \
+    "pydantic-settings>=2.0" \
+    "websockets>=13.0"
+
+# Copy backend code
+COPY aerospike-desktop-manager/backend/ ./
+
+# Copy pre-built frontend static files
+COPY aerospike-desktop-manager/frontend/dist/ ./frontend/dist/
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
