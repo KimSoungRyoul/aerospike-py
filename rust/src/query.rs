@@ -271,15 +271,17 @@ fn execute_foreach(
                 .query(&query_policy, PartitionFilter::all(), statement)
                 .await
                 .map_err(|e| {
-                    *error_type_str.lock().unwrap() =
-                        crate::metrics::error_type_from_aerospike_error(&e);
+                    if let Ok(mut guard) = error_type_str.lock() {
+                        *guard = crate::metrics::error_type_from_aerospike_error(&e);
+                    }
                     as_to_pyerr(e)
                 })?;
             let mut stream = rs.into_stream();
             while let Some(record_result) = stream.next().await {
                 let record = record_result.map_err(|e| {
-                    *error_type_str.lock().unwrap() =
-                        crate::metrics::error_type_from_aerospike_error(&e);
+                    if let Ok(mut guard) = error_type_str.lock() {
+                        *guard = crate::metrics::error_type_from_aerospike_error(&e);
+                    }
                     as_to_pyerr(e)
                 })?;
                 // Re-acquire GIL to call Python callback per record
@@ -296,7 +298,7 @@ fn execute_foreach(
             }
             Ok(())
         });
-        (res, error_type_str.into_inner().unwrap())
+        (res, error_type_str.into_inner().unwrap_or_default())
     });
 
     match &result {

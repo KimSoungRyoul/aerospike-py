@@ -981,8 +981,10 @@ class AsyncClient:
         self,
         username: Optional[str] = None,
         password: Optional[str] = None,
-    ) -> None:
+    ) -> "AsyncClient":
         """Connect to the Aerospike cluster.
+
+        Returns ``self`` for method chaining, matching the sync ``Client``.
 
         Args:
             username: Optional username for authentication.
