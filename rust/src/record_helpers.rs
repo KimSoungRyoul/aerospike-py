@@ -35,7 +35,10 @@ pub fn record_to_meta(py: Python<'_>, record: &aerospike_core::Record) -> PyResu
     meta.set_item("gen", record.generation)?;
     let ttl: u32 = record
         .time_to_live()
-        .map(|d| d.as_secs() as u32)
+        .map(|d| {
+            // Cap at u32::MAX to prevent truncation of very large TTL values
+            d.as_secs().try_into().unwrap_or(u32::MAX)
+        })
         .unwrap_or(0xFFFFFFFF_u32);
     meta.set_item("ttl", ttl)?;
     Ok(meta.into_any().unbind())
