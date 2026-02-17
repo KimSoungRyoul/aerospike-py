@@ -243,7 +243,8 @@ fn execute_query(
     Ok(py_list.into_any().unbind())
 }
 
-/// Execute a query/scan and call a callback for each record
+/// Execute a query/scan and call a callback for each record incrementally
+/// during stream iteration, instead of collecting all results first.
 #[allow(clippy::too_many_arguments, unused)]
 fn execute_foreach(
     py: Python<'_>,
@@ -258,32 +259,61 @@ fn execute_foreach(
 ) -> PyResult<()> {
     let client = client.clone();
     let query_policy = parse_query_policy(policy)?;
+    let callback_owned: Py<PyAny> = callback.clone().unbind();
     debug!("Executing {} foreach", op_name);
 
     let timer = crate::metrics::OperationTimer::start(op_name, namespace, set_name);
-    let result: Result<Vec<_>, AsError> = py.detach(|| {
-        RUNTIME.block_on(async {
+
+    let (result, err_type): (Result<(), PyErr>, String) = py.detach(|| {
+        let error_type_str = std::sync::Mutex::new(String::new());
+        let res: Result<(), PyErr> = RUNTIME.block_on(async {
             let rs = client
                 .query(&query_policy, PartitionFilter::all(), statement)
-                .await?;
+                .await
+                .map_err(|e| {
+                    *error_type_str.lock().unwrap() =
+                        crate::metrics::error_type_from_aerospike_error(&e);
+                    as_to_pyerr(e)
+                })?;
             let mut stream = rs.into_stream();
-            let mut results = Vec::new();
-            while let Some(result) = stream.next().await {
-                results.push(result?);
+            while let Some(record_result) = stream.next().await {
+                let record = record_result.map_err(|e| {
+                    *error_type_str.lock().unwrap() =
+                        crate::metrics::error_type_from_aerospike_error(&e);
+                    as_to_pyerr(e)
+                })?;
+                // Re-acquire GIL to call Python callback per record
+                let should_continue = Python::attach(|py| -> PyResult<bool> {
+                    let py_record = record_to_py(py, &record, None)?;
+                    let cb = callback_owned.bind(py);
+                    let result = cb.call1((py_record,))?;
+                    // If callback returns False, stop iteration
+                    Ok(result.extract::<bool>().unwrap_or(true))
+                })?;
+                if !should_continue {
+                    break;
+                }
             }
-            Ok(results)
-        })
+            Ok(())
+        });
+        (res, error_type_str.into_inner().unwrap())
     });
 
     match &result {
         Ok(_) => timer.finish(""),
-        Err(e) => timer.finish(&crate::metrics::error_type_from_aerospike_error(e)),
+        Err(_) => {
+            if err_type.is_empty() {
+                timer.finish("CallbackError");
+            } else {
+                timer.finish(&err_type);
+            }
+        }
     }
 
     // OTel span for query/scan foreach
     #[cfg(feature = "otel")]
     {
-        use opentelemetry::trace::{SpanKind, TraceContextExt, Tracer};
+        use opentelemetry::trace::{SpanKind, Status, TraceContextExt, Tracer};
         use opentelemetry::KeyValue;
         let tracer = crate::tracing::otel_impl::get_tracer();
         let span_name = format!("{} {}.{}", op_name.to_uppercase(), namespace, set_name);
@@ -303,21 +333,18 @@ fn execute_foreach(
         let cx = opentelemetry::Context::current().with_span(span);
         let span_ref = opentelemetry::trace::TraceContextExt::span(&cx);
         if let Err(e) = &result {
-            crate::tracing::otel_impl::record_error_on_span(&span_ref, e);
+            let etype = if err_type.is_empty() {
+                "CallbackError".to_string()
+            } else {
+                err_type.clone()
+            };
+            span_ref.set_attribute(KeyValue::new("error.type", etype));
+            span_ref.set_status(Status::error(format!("{e}")));
         }
         span_ref.end();
     }
 
-    let records = result.map_err(as_to_pyerr)?;
-    for record in &records {
-        let py_record = record_to_py(py, record, None)?;
-        let result = callback.call1((py_record,))?;
-        // If callback returns False, stop iteration
-        if let Ok(false) = result.extract::<bool>() {
-            break;
-        }
-    }
-    Ok(())
+    result
 }
 
 // ── Query class ──────────────────────────────────────────
