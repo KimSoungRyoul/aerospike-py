@@ -400,73 +400,66 @@ impl PyClient {
 
         #[cfg(feature = "otel")]
         let parent_ctx = crate::tracing::otel_impl::extract_python_context(py);
-        #[allow(unused)]
-        let conn_info = &self.connection_info;
-
-        let timer = crate::metrics::OperationTimer::start(
-            "exists",
-            &rust_key.namespace,
-            &rust_key.set_name,
-        );
+        #[cfg(not(feature = "otel"))]
+        let parent_ctx = ();
+        let conn_info = self.connection_info.clone();
 
         let result = if policy.is_none() {
             let rp = &*DEFAULT_READ_POLICY;
-            py.detach(|| RUNTIME.block_on(async { client.get(rp, &rust_key, Bins::None).await }))
+            py.detach(|| {
+                RUNTIME.block_on(async {
+                    traced_op!(
+                        "exists",
+                        &rust_key.namespace,
+                        &rust_key.set_name,
+                        parent_ctx,
+                        conn_info,
+                        {
+                            match client.get(rp, &rust_key, Bins::None).await {
+                                Ok(record) => Ok(Some(record)),
+                                Err(AsError::ServerError(ResultCode::KeyNotFoundError, _, _)) => {
+                                    Ok(None)
+                                }
+                                Err(e) => Err(e),
+                            }
+                        }
+                    )
+                })
+            })?
         } else {
             let read_policy = parse_read_policy(policy)?;
             py.detach(|| {
-                RUNTIME.block_on(async { client.get(&read_policy, &rust_key, Bins::None).await })
-            })
+                RUNTIME.block_on(async {
+                    traced_op!(
+                        "exists",
+                        &rust_key.namespace,
+                        &rust_key.set_name,
+                        parent_ctx,
+                        conn_info,
+                        {
+                            match client.get(&read_policy, &rust_key, Bins::None).await {
+                                Ok(record) => Ok(Some(record)),
+                                Err(AsError::ServerError(ResultCode::KeyNotFoundError, _, _)) => {
+                                    Ok(None)
+                                }
+                                Err(e) => Err(e),
+                            }
+                        }
+                    )
+                })
+            })?
         };
 
-        match &result {
-            Ok(_) => timer.finish(""),
-            Err(AsError::ServerError(ResultCode::KeyNotFoundError, _, _)) => timer.finish(""),
-            Err(e) => timer.finish(&crate::metrics::error_type_from_aerospike_error(e)),
-        }
-
-        // OTel span for exists
-        #[cfg(feature = "otel")]
-        {
-            use opentelemetry::trace::{SpanKind, TraceContextExt, Tracer};
-            use opentelemetry::KeyValue;
-            let tracer = crate::tracing::otel_impl::get_tracer();
-            let span_name = format!("EXISTS {}.{}", rust_key.namespace, rust_key.set_name);
-            let span = tracer
-                .span_builder(span_name)
-                .with_kind(SpanKind::Client)
-                .with_attributes(vec![
-                    KeyValue::new("db.system.name", "aerospike"),
-                    KeyValue::new("db.namespace", rust_key.namespace.clone()),
-                    KeyValue::new("db.collection.name", rust_key.set_name.clone()),
-                    KeyValue::new("db.operation.name", "EXISTS"),
-                    KeyValue::new("server.address", conn_info.server_address.clone()),
-                    KeyValue::new("server.port", conn_info.server_port),
-                    KeyValue::new("db.aerospike.cluster_name", conn_info.cluster_name.clone()),
-                ])
-                .start_with_context(&tracer, &parent_ctx);
-            let cx = parent_ctx.with_span(span);
-            let span_ref = opentelemetry::trace::TraceContextExt::span(&cx);
-            match &result {
-                Ok(_) | Err(AsError::ServerError(ResultCode::KeyNotFoundError, _, _)) => {}
-                Err(e) => {
-                    crate::tracing::otel_impl::record_error_on_span(&span_ref, e);
-                }
-            }
-            span_ref.end();
-        }
-
         match result {
-            Ok(record) => {
+            Some(record) => {
                 let meta = record_to_meta(py, &record)?;
                 let tuple = PyTuple::new(py, [key_py, meta])?;
                 Ok(tuple.into_any().unbind())
             }
-            Err(AsError::ServerError(ResultCode::KeyNotFoundError, _, _)) => {
+            None => {
                 let tuple = PyTuple::new(py, [key_py, py.None()])?;
                 Ok(tuple.into_any().unbind())
             }
-            Err(e) => Err(as_to_pyerr(e)),
         }
     }
 
@@ -1583,6 +1576,9 @@ impl PyClient {
             .map(|k| py_to_key(&k))
             .collect::<PyResult<_>>()?;
 
+        // Clone rust_ops per key because BatchOperation::write takes Vec<Operation>
+        // by value (ownership). Arc wrapping won't help since we must materialize a
+        // Vec for each batch entry. This is O(n×m) but unavoidable given the API.
         let batch_ops: Vec<BatchOperation> = rust_keys
             .iter()
             .map(|k| BatchOperation::write(&write_policy, k.clone(), rust_ops.clone()))
