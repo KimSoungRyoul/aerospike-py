@@ -4,6 +4,8 @@ Drop-in compatible replacement for the aerospike-client-python package.
 """
 
 import logging
+import threading
+import warnings
 from typing import Any
 
 from aerospike_py._aerospike import Client as _NativeClient
@@ -23,7 +25,7 @@ from aerospike_py._aerospike import (  # noqa: F401
     RecordError,
     ServerError,
     AerospikeTimeoutError,
-    TimeoutError,  # deprecated alias for AerospikeTimeoutError
+    TimeoutError as _DeprecatedTimeoutError,  # kept for backward compat via __getattr__
     RecordNotFound,
     RecordExistsError,
     RecordGenerationError,
@@ -34,7 +36,7 @@ from aerospike_py._aerospike import (  # noqa: F401
     BinTypeError,
     FilteredOut,
     AerospikeIndexError,
-    IndexError,  # deprecated alias for AerospikeIndexError
+    IndexError as _DeprecatedIndexError,  # kept for backward compat via __getattr__
     IndexNotFound,
     IndexFoundError,
     QueryError,
@@ -337,7 +339,7 @@ class AsyncClient:
         await self.close()
         return False
 
-    async def connect(self, username: str | None = None, password: str | None = None) -> None:
+    async def connect(self, username: str | None = None, password: str | None = None) -> "AsyncClient":
         """Connect to the Aerospike cluster.
 
         Args:
@@ -354,7 +356,8 @@ class AsyncClient:
             ```
         """
         logger.info("Async client connecting")
-        return await self._inner.connect(username, password)
+        await self._inner.connect(username, password)
+        return self
 
     async def close(self) -> None:
         """Close the connection to the cluster.
@@ -458,12 +461,12 @@ def get_metrics() -> str:
 
 _metrics_server = None
 _metrics_server_thread = None
+_metrics_lock = threading.Lock()
 
 
 def start_metrics_server(port: int = 9464) -> None:
     """Start a background HTTP server serving /metrics for Prometheus scraping."""
     global _metrics_server, _metrics_server_thread
-    import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     class _MetricsHandler(BaseHTTPRequestHandler):
@@ -482,25 +485,27 @@ def start_metrics_server(port: int = 9464) -> None:
         def log_message(self, format, *args):
             pass
 
-    new_server = HTTPServer(("", port), _MetricsHandler)
+    with _metrics_lock:
+        new_server = HTTPServer(("", port), _MetricsHandler)
 
-    if _metrics_server is not None:
-        _metrics_server.shutdown()
+        if _metrics_server is not None:
+            _metrics_server.shutdown()
 
-    _metrics_server = new_server
-    _metrics_server_thread = threading.Thread(target=_metrics_server.serve_forever, daemon=True)
-    _metrics_server_thread.start()
+        _metrics_server = new_server
+        _metrics_server_thread = threading.Thread(target=_metrics_server.serve_forever, daemon=True)
+        _metrics_server_thread.start()
 
 
 def stop_metrics_server() -> None:
     """Stop the background metrics HTTP server."""
     global _metrics_server, _metrics_server_thread
-    if _metrics_server is not None:
-        try:
-            _metrics_server.shutdown()
-        finally:
-            _metrics_server = None
-            _metrics_server_thread = None
+    with _metrics_lock:
+        if _metrics_server is not None:
+            try:
+                _metrics_server.shutdown()
+            finally:
+                _metrics_server = None
+                _metrics_server_thread = None
 
 
 def init_tracing() -> None:
@@ -522,6 +527,24 @@ def shutdown_tracing() -> None:
     Call before process exit to ensure all spans are exported.
     """
     _shutdown_tracing()
+
+
+_DEPRECATED_ALIASES = {
+    "TimeoutError": ("AerospikeTimeoutError", _DeprecatedTimeoutError),
+    "IndexError": ("AerospikeIndexError", _DeprecatedIndexError),
+}
+
+
+def __getattr__(name: str):
+    if name in _DEPRECATED_ALIASES:
+        replacement, obj = _DEPRECATED_ALIASES[name]
+        warnings.warn(
+            f"aerospike_py.{name} shadows a Python builtin. Use aerospike_py.{replacement} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return obj
+    raise AttributeError(f"module 'aerospike_py' has no attribute {name!r}")
 
 
 __all__ = [
@@ -555,7 +578,7 @@ __all__ = [
     "RecordError",
     "ServerError",
     "AerospikeTimeoutError",
-    "TimeoutError",  # deprecated alias
+    "TimeoutError",  # deprecated alias, provided via __getattr__  # pyright: ignore[reportUnsupportedDunderAll]
     "RecordNotFound",
     "RecordExistsError",
     "RecordGenerationError",
@@ -566,7 +589,7 @@ __all__ = [
     "BinTypeError",
     "FilteredOut",
     "AerospikeIndexError",
-    "IndexError",  # deprecated alias
+    "IndexError",  # deprecated alias, provided via __getattr__  # pyright: ignore[reportUnsupportedDunderAll]
     "IndexNotFound",
     "IndexFoundError",
     "QueryError",
