@@ -7,5 +7,8 @@ pub static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .expect("Failed to create Tokio runtime")
+        .unwrap_or_else(|e| {
+            eprintln!("FATAL: Failed to create Tokio runtime: {}", e);
+            std::process::exit(1);
+        })
 });
