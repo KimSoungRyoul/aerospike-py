@@ -89,22 +89,33 @@ pub(crate) mod otel_impl {
 
         global::set_tracer_provider(provider.clone());
 
-        let mut guard = TRACER_PROVIDER.lock().unwrap();
-        *guard = Some(provider);
-
-        log::info!("OTel tracer provider initialised");
+        match TRACER_PROVIDER.lock() {
+            Ok(mut guard) => {
+                *guard = Some(provider);
+                log::info!("OTel tracer provider initialised");
+            }
+            Err(e) => {
+                warn!("Failed to acquire TRACER_PROVIDER lock: {e}");
+            }
+        }
     }
 
     /// Shut down the tracer provider, flushing any pending spans.
     pub fn shutdown_tracer_provider() {
-        let mut guard = TRACER_PROVIDER.lock().unwrap();
-        if let Some(provider) = guard.take() {
-            // Shutdown flushes pending spans via the batch exporter which needs Tokio.
-            let _rt_guard = crate::runtime::RUNTIME.enter();
-            if let Err(e) = provider.shutdown() {
-                warn!("OTel tracer provider shutdown error: {e}");
-            } else {
-                log::info!("OTel tracer provider shut down");
+        match TRACER_PROVIDER.lock() {
+            Ok(mut guard) => {
+                if let Some(provider) = guard.take() {
+                    // Shutdown flushes pending spans via the batch exporter which needs Tokio.
+                    let _rt_guard = crate::runtime::RUNTIME.enter();
+                    if let Err(e) = provider.shutdown() {
+                        warn!("OTel tracer provider shutdown error: {e}");
+                    } else {
+                        log::info!("OTel tracer provider shut down");
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Failed to acquire TRACER_PROVIDER lock: {e}");
             }
         }
     }
