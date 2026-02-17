@@ -16,6 +16,13 @@ pub fn py_to_key(key_tuple: &Bound<'_, PyAny>) -> PyResult<Key> {
         ));
     }
 
+    if tuple.len() > 4 {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Key tuple must have 3-4 elements, got {}",
+            tuple.len()
+        )));
+    }
+
     let namespace: String = tuple.get_item(0)?.extract()?;
     let set_name: String = tuple.get_item(1)?.extract()?;
     let user_key = py_to_value(&tuple.get_item(2)?)?;
