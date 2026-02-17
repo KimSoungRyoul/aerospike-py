@@ -91,11 +91,15 @@ pub fn error_type_from_aerospike_error(err: &AsError) -> String {
     }
 }
 
-pub fn get_text() -> String {
+pub fn get_text() -> Result<String, String> {
     let mut buf = String::new();
-    let registry = METRICS.registry.lock().unwrap();
-    prometheus_client::encoding::text::encode(&mut buf, &registry).unwrap();
-    buf
+    let registry = METRICS
+        .registry
+        .lock()
+        .map_err(|e| format!("Metrics lock poisoned: {e}"))?;
+    prometheus_client::encoding::text::encode(&mut buf, &registry)
+        .map_err(|e| format!("Metrics encoding failed: {e}"))?;
+    Ok(buf)
 }
 
 /// Instrument a data operation with metrics.

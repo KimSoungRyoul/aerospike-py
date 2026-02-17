@@ -20,8 +20,8 @@ mod types;
 
 /// Return collected metrics in Prometheus text format.
 #[pyfunction]
-fn get_metrics_text() -> String {
-    metrics::get_text()
+fn get_metrics_text() -> PyResult<String> {
+    metrics::get_text().map_err(pyo3::exceptions::PyRuntimeError::new_err)
 }
 
 /// Native Aerospike Python client module
