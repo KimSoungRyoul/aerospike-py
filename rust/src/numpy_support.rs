@@ -104,7 +104,9 @@ fn get_array_data_ptr(array: &Bound<'_, PyAny>) -> PyResult<*mut u8> {
     if readonly {
         return Err(PyValueError::new_err("numpy array is read-only"));
     }
-    debug_assert!(ptr_int != 0, "numpy array data pointer is null");
+    if ptr_int == 0 {
+        return Err(PyValueError::new_err("numpy array has null data pointer"));
+    }
     Ok(ptr_int as *mut u8)
 }
 
