@@ -5,8 +5,20 @@ use pyo3::types::{PyDict, PyList};
 
 use crate::types::value::py_to_value;
 
+const MAX_EXPRESSION_DEPTH: usize = 128;
+
 /// Convert a Python expression dict tree into an aerospike-core Expression.
 pub fn py_to_expression(obj: &Bound<'_, PyAny>) -> PyResult<Expression> {
+    py_to_expression_inner(obj, 0)
+}
+
+fn py_to_expression_inner(obj: &Bound<'_, PyAny>, depth: usize) -> PyResult<Expression> {
+    if depth > MAX_EXPRESSION_DEPTH {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Expression nesting depth exceeded maximum of 128",
+        ));
+    }
+
     let dict = obj.cast::<PyDict>().map_err(|_| {
         pyo3::exceptions::PyTypeError::new_err(
             "Expression must be a dict with '__expr__' key (use aerospike_py.exp builder functions)",
@@ -129,217 +141,303 @@ pub fn py_to_expression(obj: &Bound<'_, PyAny>) -> PyResult<Expression> {
 
         // ── Comparison operations ──
         "eq" => {
-            let left = parse_sub_expr(dict, "left")?;
-            let right = parse_sub_expr(dict, "right")?;
+            let left = parse_sub_expr(dict, "left", depth)?;
+            let right = parse_sub_expr(dict, "right", depth)?;
             Ok(expressions::eq(left, right))
         }
         "ne" => {
-            let left = parse_sub_expr(dict, "left")?;
-            let right = parse_sub_expr(dict, "right")?;
+            let left = parse_sub_expr(dict, "left", depth)?;
+            let right = parse_sub_expr(dict, "right", depth)?;
             Ok(expressions::ne(left, right))
         }
         "gt" => {
-            let left = parse_sub_expr(dict, "left")?;
-            let right = parse_sub_expr(dict, "right")?;
+            let left = parse_sub_expr(dict, "left", depth)?;
+            let right = parse_sub_expr(dict, "right", depth)?;
             Ok(expressions::gt(left, right))
         }
         "ge" => {
-            let left = parse_sub_expr(dict, "left")?;
-            let right = parse_sub_expr(dict, "right")?;
+            let left = parse_sub_expr(dict, "left", depth)?;
+            let right = parse_sub_expr(dict, "right", depth)?;
             Ok(expressions::ge(left, right))
         }
         "lt" => {
-            let left = parse_sub_expr(dict, "left")?;
-            let right = parse_sub_expr(dict, "right")?;
+            let left = parse_sub_expr(dict, "left", depth)?;
+            let right = parse_sub_expr(dict, "right", depth)?;
             Ok(expressions::lt(left, right))
         }
         "le" => {
-            let left = parse_sub_expr(dict, "left")?;
-            let right = parse_sub_expr(dict, "right")?;
+            let left = parse_sub_expr(dict, "left", depth)?;
+            let right = parse_sub_expr(dict, "right", depth)?;
             Ok(expressions::le(left, right))
         }
 
         // ── Logical operations ──
         "and" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::and(exprs))
         }
         "or" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::or(exprs))
         }
         "not" => {
-            let expr = parse_sub_expr(dict, "expr")?;
+            let expr = parse_sub_expr(dict, "expr", depth)?;
             Ok(expressions::not(expr))
         }
         "xor" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::xor(exprs))
         }
 
         // ── Numeric operations ──
         "num_add" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::num_add(exprs))
         }
         "num_sub" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::num_sub(exprs))
         }
         "num_mul" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::num_mul(exprs))
         }
         "num_div" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::num_div(exprs))
         }
         "num_mod" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             if exprs.len() != 2 {
                 return Err(pyo3::exceptions::PyValueError::new_err(
                     "num_mod requires exactly 2 expressions (numerator, denominator)",
                 ));
             }
             let mut iter = exprs.into_iter();
-            Ok(expressions::num_mod(
-                iter.next().unwrap(),
-                iter.next().unwrap(),
-            ))
+            let first = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "num_mod requires exactly 2 expressions (numerator, denominator)",
+                )
+            })?;
+            let second = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "num_mod requires exactly 2 expressions (numerator, denominator)",
+                )
+            })?;
+            Ok(expressions::num_mod(first, second))
         }
         "num_pow" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             if exprs.len() != 2 {
                 return Err(pyo3::exceptions::PyValueError::new_err(
                     "num_pow requires exactly 2 expressions (base, exponent)",
                 ));
             }
             let mut iter = exprs.into_iter();
-            Ok(expressions::num_pow(
-                iter.next().unwrap(),
-                iter.next().unwrap(),
-            ))
+            let first = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "num_pow requires exactly 2 expressions (base, exponent)",
+                )
+            })?;
+            let second = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "num_pow requires exactly 2 expressions (base, exponent)",
+                )
+            })?;
+            Ok(expressions::num_pow(first, second))
         }
         "num_log" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             if exprs.len() != 2 {
                 return Err(pyo3::exceptions::PyValueError::new_err(
                     "num_log requires exactly 2 expressions (num, base)",
                 ));
             }
             let mut iter = exprs.into_iter();
-            Ok(expressions::num_log(
-                iter.next().unwrap(),
-                iter.next().unwrap(),
-            ))
+            let first = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "num_log requires exactly 2 expressions (num, base)",
+                )
+            })?;
+            let second = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "num_log requires exactly 2 expressions (num, base)",
+                )
+            })?;
+            Ok(expressions::num_log(first, second))
         }
         "num_abs" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
-            Ok(expressions::num_abs(exprs.into_iter().next().unwrap()))
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            let expr = exprs.into_iter().next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("num_abs requires exactly 1 expression")
+            })?;
+            Ok(expressions::num_abs(expr))
         }
         "num_floor" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
-            Ok(expressions::num_floor(exprs.into_iter().next().unwrap()))
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            let expr = exprs.into_iter().next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("num_floor requires exactly 1 expression")
+            })?;
+            Ok(expressions::num_floor(expr))
         }
         "num_ceil" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
-            Ok(expressions::num_ceil(exprs.into_iter().next().unwrap()))
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            let expr = exprs.into_iter().next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("num_ceil requires exactly 1 expression")
+            })?;
+            Ok(expressions::num_ceil(expr))
         }
         "to_int" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
-            Ok(expressions::to_int(exprs.into_iter().next().unwrap()))
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            let expr = exprs.into_iter().next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("to_int requires exactly 1 expression")
+            })?;
+            Ok(expressions::to_int(expr))
         }
         "to_float" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
-            Ok(expressions::to_float(exprs.into_iter().next().unwrap()))
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            let expr = exprs.into_iter().next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("to_float requires exactly 1 expression")
+            })?;
+            Ok(expressions::to_float(expr))
         }
         "min" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::min(exprs))
         }
         "max" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::max(exprs))
         }
 
         // ── Integer bitwise operations ──
         "int_and" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::int_and(exprs))
         }
         "int_or" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::int_or(exprs))
         }
         "int_xor" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::int_xor(exprs))
         }
         "int_not" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
-            Ok(expressions::int_not(exprs.into_iter().next().unwrap()))
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            let expr = exprs.into_iter().next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_not requires exactly 1 expression")
+            })?;
+            Ok(expressions::int_not(expr))
         }
         "int_lshift" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            if exprs.len() != 2 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "int_lshift requires exactly 2 expressions",
+                ));
+            }
             let mut iter = exprs.into_iter();
-            Ok(expressions::int_lshift(
-                iter.next().unwrap(),
-                iter.next().unwrap(),
-            ))
+            let first = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_lshift requires exactly 2 expressions")
+            })?;
+            let second = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_lshift requires exactly 2 expressions")
+            })?;
+            Ok(expressions::int_lshift(first, second))
         }
         "int_rshift" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            if exprs.len() != 2 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "int_rshift requires exactly 2 expressions",
+                ));
+            }
             let mut iter = exprs.into_iter();
-            Ok(expressions::int_rshift(
-                iter.next().unwrap(),
-                iter.next().unwrap(),
-            ))
+            let first = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_rshift requires exactly 2 expressions")
+            })?;
+            let second = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_rshift requires exactly 2 expressions")
+            })?;
+            Ok(expressions::int_rshift(first, second))
         }
         "int_arshift" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            if exprs.len() != 2 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "int_arshift requires exactly 2 expressions",
+                ));
+            }
             let mut iter = exprs.into_iter();
-            Ok(expressions::int_arshift(
-                iter.next().unwrap(),
-                iter.next().unwrap(),
-            ))
+            let first = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "int_arshift requires exactly 2 expressions",
+                )
+            })?;
+            let second = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(
+                    "int_arshift requires exactly 2 expressions",
+                )
+            })?;
+            Ok(expressions::int_arshift(first, second))
         }
         "int_count" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
-            Ok(expressions::int_count(exprs.into_iter().next().unwrap()))
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            let expr = exprs.into_iter().next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_count requires exactly 1 expression")
+            })?;
+            Ok(expressions::int_count(expr))
         }
         "int_lscan" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            if exprs.len() != 2 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "int_lscan requires exactly 2 expressions",
+                ));
+            }
             let mut iter = exprs.into_iter();
-            Ok(expressions::int_lscan(
-                iter.next().unwrap(),
-                iter.next().unwrap(),
-            ))
+            let first = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_lscan requires exactly 2 expressions")
+            })?;
+            let second = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_lscan requires exactly 2 expressions")
+            })?;
+            Ok(expressions::int_lscan(first, second))
         }
         "int_rscan" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
+            if exprs.len() != 2 {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "int_rscan requires exactly 2 expressions",
+                ));
+            }
             let mut iter = exprs.into_iter();
-            Ok(expressions::int_rscan(
-                iter.next().unwrap(),
-                iter.next().unwrap(),
-            ))
+            let first = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_rscan requires exactly 2 expressions")
+            })?;
+            let second = iter.next().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("int_rscan requires exactly 2 expressions")
+            })?;
+            Ok(expressions::int_rscan(first, second))
         }
 
         // ── Pattern matching ──
         "regex_compare" => {
             let regex: String = get_required(dict, "regex")?;
             let flags: i64 = get_required(dict, "flags")?;
-            let bin_expr = parse_sub_expr(dict, "bin")?;
+            let bin_expr = parse_sub_expr(dict, "bin", depth)?;
             Ok(expressions::regex_compare(regex, flags, bin_expr))
         }
         "geo_compare" => {
-            let left = parse_sub_expr(dict, "left")?;
-            let right = parse_sub_expr(dict, "right")?;
+            let left = parse_sub_expr(dict, "left", depth)?;
+            let right = parse_sub_expr(dict, "right", depth)?;
             Ok(expressions::geo_compare(left, right))
         }
 
         // ── Control flow ──
         "cond" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::cond(exprs))
         }
         "var" => {
@@ -348,11 +446,11 @@ pub fn py_to_expression(obj: &Bound<'_, PyAny>) -> PyResult<Expression> {
         }
         "def" => {
             let name: String = get_required(dict, "name")?;
-            let value = parse_sub_expr(dict, "value")?;
+            let value = parse_sub_expr(dict, "value", depth)?;
             Ok(expressions::def(name, value))
         }
         "let" => {
-            let exprs = parse_sub_expr_list(dict, "exprs")?;
+            let exprs = parse_sub_expr_list(dict, "exprs", depth)?;
             Ok(expressions::exp_let(exprs))
         }
 
@@ -385,19 +483,23 @@ fn get_required_any<'py>(dict: &Bound<'py, PyDict>, key: &str) -> PyResult<Bound
     })
 }
 
-fn parse_sub_expr(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Expression> {
+fn parse_sub_expr(dict: &Bound<'_, PyDict>, key: &str, depth: usize) -> PyResult<Expression> {
     let obj = get_required_any(dict, key)?;
-    py_to_expression(&obj)
+    py_to_expression_inner(&obj, depth + 1)
 }
 
-fn parse_sub_expr_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Vec<Expression>> {
+fn parse_sub_expr_list(
+    dict: &Bound<'_, PyDict>,
+    key: &str,
+    depth: usize,
+) -> PyResult<Vec<Expression>> {
     let obj = get_required_any(dict, key)?;
     let list = obj.cast::<PyList>().map_err(|_| {
         pyo3::exceptions::PyTypeError::new_err(format!("'{key}' must be a list of expressions"))
     })?;
     let mut result = Vec::with_capacity(list.len());
     for item in list.iter() {
-        result.push(py_to_expression(&item)?);
+        result.push(py_to_expression_inner(&item, depth + 1)?);
     }
     Ok(result)
 }
