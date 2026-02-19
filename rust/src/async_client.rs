@@ -16,7 +16,7 @@ use crate::errors::as_to_pyerr;
 use crate::policy::admin_policy::{parse_privileges, role_to_py, user_to_py};
 use crate::policy::client_policy::parse_client_policy;
 use crate::policy::write_policy::DEFAULT_WRITE_POLICY;
-use crate::record_helpers::{batch_records_to_py, record_to_meta};
+use crate::record_helpers::{batch_records_to_py, record_to_meta, record_to_ordered_tuple};
 use crate::types::host::parse_hosts_from_config;
 use crate::types::key::key_to_py;
 use crate::types::record::record_to_py;
@@ -668,29 +668,7 @@ impl PyAsyncClient {
                 }
             )?;
 
-            Python::attach(|py| {
-                let key_py = match &record.key {
-                    Some(k) => key_to_py(py, k)?,
-                    None => key_to_py(py, &args.key)?,
-                };
-                let meta_dict_obj = record_to_meta(py, &record)?;
-                let ordered_bins = PyList::empty(py);
-                for (name, value) in &record.bins {
-                    let tuple = PyTuple::new(
-                        py,
-                        [
-                            name.as_str().into_pyobject(py)?.into_any().unbind(),
-                            value_to_py(py, value)?,
-                        ],
-                    )?;
-                    ordered_bins.append(tuple)?;
-                }
-                let result = PyTuple::new(
-                    py,
-                    [key_py, meta_dict_obj, ordered_bins.into_any().unbind()],
-                )?;
-                Ok(result.into_any().unbind())
-            })
+            Python::attach(|py| record_to_ordered_tuple(py, &record, &args.key))
         })
     }
 

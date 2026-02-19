@@ -266,6 +266,15 @@ except PackageNotFoundError:
 logger = logging.getLogger("aerospike_py")
 logger.addHandler(logging.NullHandler())
 
+_AEROSPIKE_LEVEL_MAP = {
+    -1: logging.CRITICAL + 1,  # OFF
+    0: logging.ERROR,
+    1: logging.WARNING,
+    2: logging.INFO,
+    3: logging.DEBUG,
+    4: 5,  # TRACE
+}
+
 
 # ---------------------------------------------------------------------------
 # Wrapping helpers
@@ -305,8 +314,8 @@ def _wrap_operate_ordered(raw: tuple) -> OperateOrderedResult:
 # ---------------------------------------------------------------------------
 
 
-class Query:
-    """Python wrapper around the native Query object that returns typed records."""
+class _QueryBase:
+    """Shared setup methods for Query and AsyncQuery."""
 
     def __init__(self, inner: _NativeQuery):
         self._inner = inner
@@ -316,6 +325,10 @@ class Query:
 
     def where(self, predicate) -> None:
         self._inner.where(predicate)
+
+
+class Query(_QueryBase):
+    """Python wrapper around the native Query object that returns typed records."""
 
     def results(self, policy=None) -> list[Record]:
         return [_wrap_record(r) for r in self._inner.results(policy)]
@@ -327,22 +340,13 @@ class Query:
         self._inner.foreach(_cb, policy)
 
 
-class AsyncQuery:
+class AsyncQuery(_QueryBase):
     """Async Python wrapper around the native Query object that returns typed records.
 
     ``select()`` and ``where()`` are synchronous setup methods.
     ``results()`` and ``foreach()`` are async and run the blocking native
     query in a thread pool to avoid blocking the event loop.
     """
-
-    def __init__(self, inner: _NativeQuery):
-        self._inner = inner
-
-    def select(self, *bins: str) -> None:
-        self._inner.select(*bins)
-
-    def where(self, predicate) -> None:
-        self._inner.where(predicate)
 
     async def results(self, policy=None) -> list[Record]:
         raw = await asyncio.to_thread(self._inner.results, policy)
@@ -808,15 +812,7 @@ def set_log_level(level: int) -> None:
         aerospike_py.set_log_level(aerospike_py.LOG_LEVEL_DEBUG)
         ```
     """
-    _LEVEL_MAP = {
-        -1: logging.CRITICAL + 1,  # OFF
-        0: logging.ERROR,
-        1: logging.WARNING,
-        2: logging.INFO,
-        3: logging.DEBUG,
-        4: 5,  # TRACE
-    }
-    py_level = _LEVEL_MAP.get(level, level)
+    py_level = _AEROSPIKE_LEVEL_MAP.get(level, level)
     logging.getLogger("aerospike_py").setLevel(py_level)
     logging.getLogger("_aerospike").setLevel(py_level)
     logging.getLogger("aerospike_core").setLevel(py_level)

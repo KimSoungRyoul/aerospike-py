@@ -20,3 +20,16 @@ macro_rules! extract_policy_fields {
 }
 
 pub(crate) use extract_policy_fields;
+
+/// Parse an optional `filter_expression` field from a Python dict.
+pub fn parse_filter_expression(
+    dict: &pyo3::Bound<'_, pyo3::types::PyDict>,
+) -> pyo3::PyResult<Option<aerospike_core::expressions::Expression>> {
+    use pyo3::types::PyDictMethods;
+    if let Some(val) = dict.get_item("filter_expression")? {
+        if crate::expressions::is_expression(&val) {
+            return Ok(Some(crate::expressions::py_to_expression(&val)?));
+        }
+    }
+    Ok(None)
+}

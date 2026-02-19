@@ -42,3 +42,36 @@ pub fn record_to_meta(py: Python<'_>, record: &aerospike_core::Record) -> PyResu
     meta.set_item("ttl", ttl)?;
     Ok(meta.into_any().unbind())
 }
+
+/// Build a `(key, meta, ordered_bins)` Python tuple for `operate_ordered`.
+///
+/// `ordered_bins` is a `list[tuple[str, Any]]` preserving insertion order.
+pub fn record_to_ordered_tuple(
+    py: Python<'_>,
+    record: &aerospike_core::Record,
+    fallback_key: &aerospike_core::Key,
+) -> PyResult<Py<PyAny>> {
+    let key_py = match &record.key {
+        Some(k) => key_to_py(py, k)?,
+        None => key_to_py(py, fallback_key)?,
+    };
+    let meta_py = record_to_meta(py, record)?;
+
+    let ordered_bins = PyList::empty(py);
+    for (name, value) in &record.bins {
+        let tuple = PyTuple::new(
+            py,
+            [
+                name.as_str().into_pyobject(py)?.into_any().unbind(),
+                value_to_py(py, value)?,
+            ],
+        )?;
+        ordered_bins.append(tuple)?;
+    }
+
+    let result = PyTuple::new(
+        py,
+        [key_py, meta_py, ordered_bins.into_any().unbind()],
+    )?;
+    Ok(result.into_any().unbind())
+}

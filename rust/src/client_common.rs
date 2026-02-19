@@ -389,6 +389,23 @@ pub fn prepare_operate_args(
     })
 }
 
+// ── batch helpers ────────────────────────────────────────────────────────────
+
+/// Extract keys from a Python list and derive the namespace/set from the first key.
+fn extract_batch_keys_and_ns(keys: &Bound<'_, PyList>) -> PyResult<(Vec<Key>, String, String)> {
+    let rust_keys: Vec<Key> = keys
+        .iter()
+        .map(|k| py_to_key(&k))
+        .collect::<PyResult<_>>()?;
+
+    let (batch_ns, batch_set) = rust_keys
+        .first()
+        .map(|k| (k.namespace.clone(), k.set_name.clone()))
+        .unwrap_or_default();
+
+    Ok((rust_keys, batch_ns, batch_set))
+}
+
 // ── batch_read ───────────────────────────────────────────────────────────────
 
 pub struct BatchReadArgs {
@@ -418,15 +435,7 @@ pub fn prepare_batch_read_args(
         }
     };
 
-    let rust_keys: Vec<Key> = keys
-        .iter()
-        .map(|k| py_to_key(&k))
-        .collect::<PyResult<_>>()?;
-
-    let (batch_ns, batch_set) = rust_keys
-        .first()
-        .map(|k| (k.namespace.clone(), k.set_name.clone()))
-        .unwrap_or_default();
+    let (rust_keys, batch_ns, batch_set) = extract_batch_keys_and_ns(keys)?;
 
     Ok(BatchReadArgs {
         rust_keys,
@@ -470,15 +479,7 @@ pub fn prepare_batch_operate_args(
 ) -> PyResult<BatchOperateArgs> {
     let batch_policy = parse_batch_policy(policy)?;
     let rust_ops = py_ops_to_rust(ops)?;
-    let rust_keys: Vec<Key> = keys
-        .iter()
-        .map(|k| py_to_key(&k))
-        .collect::<PyResult<_>>()?;
-
-    let (batch_ns, batch_set) = rust_keys
-        .first()
-        .map(|k| (k.namespace.clone(), k.set_name.clone()))
-        .unwrap_or_default();
+    let (rust_keys, batch_ns, batch_set) = extract_batch_keys_and_ns(keys)?;
 
     Ok(BatchOperateArgs {
         rust_keys,
@@ -519,15 +520,7 @@ pub fn prepare_batch_remove_args(
     conn_info: &ConnectionInfo,
 ) -> PyResult<BatchRemoveArgs> {
     let batch_policy = parse_batch_policy(policy)?;
-    let rust_keys: Vec<Key> = keys
-        .iter()
-        .map(|k| py_to_key(&k))
-        .collect::<PyResult<_>>()?;
-
-    let (batch_ns, batch_set) = rust_keys
-        .first()
-        .map(|k| (k.namespace.clone(), k.set_name.clone()))
-        .unwrap_or_default();
+    let (rust_keys, batch_ns, batch_set) = extract_batch_keys_and_ns(keys)?;
 
     Ok(BatchRemoveArgs {
         rust_keys,

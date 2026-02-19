@@ -69,6 +69,14 @@ _OP_MAP_GET_BY_KEY_LIST = 2026
 _OP_MAP_GET_BY_VALUE_LIST = 2027
 
 
+def _create_map_op(op_code: int, policy: Optional[MapPolicy] = None, **fields: Any) -> Operation:
+    """Build a map operation dict with optional map_policy."""
+    op: Operation = {"op": op_code, **fields}
+    if policy:
+        op["map_policy"] = policy
+    return op
+
+
 def map_set_order(bin: str, map_order: int) -> Operation:
     """Set the map ordering."""
     return {"op": _OP_MAP_SET_ORDER, "bin": bin, "val": map_order}
@@ -76,34 +84,22 @@ def map_set_order(bin: str, map_order: int) -> Operation:
 
 def map_put(bin: str, key: Any, val: Any, policy: Optional[MapPolicy] = None) -> Operation:
     """Put a key/value pair into a map bin."""
-    op = {"op": _OP_MAP_PUT, "bin": bin, "map_key": key, "val": val}
-    if policy:
-        op["map_policy"] = policy
-    return op
+    return _create_map_op(_OP_MAP_PUT, policy, bin=bin, map_key=key, val=val)
 
 
 def map_put_items(bin: str, items: dict[str, Any], policy: Optional[MapPolicy] = None) -> Operation:
     """Put multiple key/value pairs into a map bin."""
-    op = {"op": _OP_MAP_PUT_ITEMS, "bin": bin, "val": items}
-    if policy:
-        op["map_policy"] = policy
-    return op
+    return _create_map_op(_OP_MAP_PUT_ITEMS, policy, bin=bin, val=items)
 
 
 def map_increment(bin: str, key: Any, incr: Any, policy: Optional[MapPolicy] = None) -> Operation:
     """Increment a value in a map by key."""
-    op = {"op": _OP_MAP_INCREMENT, "bin": bin, "map_key": key, "val": incr}
-    if policy:
-        op["map_policy"] = policy
-    return op
+    return _create_map_op(_OP_MAP_INCREMENT, policy, bin=bin, map_key=key, val=incr)
 
 
 def map_decrement(bin: str, key: Any, decr: Any, policy: Optional[MapPolicy] = None) -> Operation:
     """Decrement a value in a map by key."""
-    op = {"op": _OP_MAP_DECREMENT, "bin": bin, "map_key": key, "val": decr}
-    if policy:
-        op["map_policy"] = policy
-    return op
+    return _create_map_op(_OP_MAP_DECREMENT, policy, bin=bin, map_key=key, val=decr)
 
 
 def map_clear(bin: str) -> Operation:
@@ -185,12 +181,7 @@ def map_remove_by_index(bin: str, index: int, return_type: int) -> Operation:
 
 def map_remove_by_index_range(bin: str, index: int, return_type: int, count: Optional[int] = None) -> Operation:
     """Remove items by index range."""
-    op = {
-        "op": _OP_MAP_REMOVE_BY_INDEX_RANGE,
-        "bin": bin,
-        "index": index,
-        "return_type": return_type,
-    }
+    op: Operation = {"op": _OP_MAP_REMOVE_BY_INDEX_RANGE, "bin": bin, "index": index, "return_type": return_type}
     if count is not None:
         op["count"] = count
     return op
@@ -208,12 +199,7 @@ def map_remove_by_rank(bin: str, rank: int, return_type: int) -> Operation:
 
 def map_remove_by_rank_range(bin: str, rank: int, return_type: int, count: Optional[int] = None) -> Operation:
     """Remove items by rank range."""
-    op = {
-        "op": _OP_MAP_REMOVE_BY_RANK_RANGE,
-        "bin": bin,
-        "rank": rank,
-        "return_type": return_type,
-    }
+    op: Operation = {"op": _OP_MAP_REMOVE_BY_RANK_RANGE, "bin": bin, "rank": rank, "return_type": return_type}
     if count is not None:
         op["count"] = count
     return op
@@ -278,12 +264,7 @@ def map_get_by_index(bin: str, index: int, return_type: int) -> Operation:
 
 def map_get_by_index_range(bin: str, index: int, return_type: int, count: Optional[int] = None) -> Operation:
     """Get items by index range."""
-    op = {
-        "op": _OP_MAP_GET_BY_INDEX_RANGE,
-        "bin": bin,
-        "index": index,
-        "return_type": return_type,
-    }
+    op: Operation = {"op": _OP_MAP_GET_BY_INDEX_RANGE, "bin": bin, "index": index, "return_type": return_type}
     if count is not None:
         op["count"] = count
     return op
@@ -301,12 +282,7 @@ def map_get_by_rank(bin: str, rank: int, return_type: int) -> Operation:
 
 def map_get_by_rank_range(bin: str, rank: int, return_type: int, count: Optional[int] = None) -> Operation:
     """Get items by rank range."""
-    op = {
-        "op": _OP_MAP_GET_BY_RANK_RANGE,
-        "bin": bin,
-        "rank": rank,
-        "return_type": return_type,
-    }
+    op: Operation = {"op": _OP_MAP_GET_BY_RANK_RANGE, "bin": bin, "rank": rank, "return_type": return_type}
     if count is not None:
         op["count"] = count
     return op

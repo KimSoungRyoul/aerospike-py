@@ -43,6 +43,15 @@ def contains(bin_name: str, index_type: int, val: Any) -> tuple[str, str, int, A
     return ("contains", bin_name, index_type, val)
 
 
+def _warn_geo_unsupported() -> None:
+    """Emit a FutureWarning about unsupported geo filters."""
+    warnings.warn(
+        "Geo filters are not yet supported; query execution will raise ClientError",
+        FutureWarning,
+        stacklevel=3,
+    )
+
+
 def geo_within_geojson_region(bin_name: str, geojson: str) -> tuple[str, str, str]:
     """Create a geospatial 'within region' predicate.
 
@@ -50,11 +59,7 @@ def geo_within_geojson_region(bin_name: str, geojson: str) -> tuple[str, str, st
         Geo filters are not yet supported in this version.
         Using this predicate in a query will raise ``ClientError`` at execution time.
     """
-    warnings.warn(
-        "Geo filters are not yet supported; query execution will raise ClientError",
-        FutureWarning,
-        stacklevel=2,
-    )
+    _warn_geo_unsupported()
     return ("geo_within_geojson_region", bin_name, geojson)
 
 
@@ -65,11 +70,7 @@ def geo_within_radius(bin_name: str, lat: float, lng: float, radius: float) -> t
         Geo filters are not yet supported in this version.
         Using this predicate in a query will raise ``ClientError`` at execution time.
     """
-    warnings.warn(
-        "Geo filters are not yet supported; query execution will raise ClientError",
-        FutureWarning,
-        stacklevel=2,
-    )
+    _warn_geo_unsupported()
     return ("geo_within_radius", bin_name, lat, lng, radius)
 
 
@@ -80,9 +81,5 @@ def geo_contains_geojson_point(bin_name: str, geojson: str) -> tuple[str, str, s
         Geo filters are not yet supported in this version.
         Using this predicate in a query will raise ``ClientError`` at execution time.
     """
-    warnings.warn(
-        "Geo filters are not yet supported; query execution will raise ClientError",
-        FutureWarning,
-        stacklevel=2,
-    )
+    _warn_geo_unsupported()
     return ("geo_contains_geojson_point", bin_name, geojson)
