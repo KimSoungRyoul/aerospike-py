@@ -312,7 +312,7 @@ pub struct PyQuery {
     set_name: String,
     bins: Vec<String>,
     predicates: Vec<Predicate>,
-    connection_info: crate::tracing::ConnectionInfo,
+    connection_info: Arc<crate::tracing::ConnectionInfo>,
 }
 
 impl PyQuery {
@@ -320,7 +320,7 @@ impl PyQuery {
         client: Arc<AsClient>,
         namespace: String,
         set_name: String,
-        connection_info: crate::tracing::ConnectionInfo,
+        connection_info: Arc<crate::tracing::ConnectionInfo>,
     ) -> Self {
         Self {
             client,
