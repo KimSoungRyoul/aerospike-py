@@ -31,6 +31,7 @@ import random
 import resource
 import statistics
 import sys
+import resource
 import time
 import tracemalloc
 from dataclasses import dataclass, field
