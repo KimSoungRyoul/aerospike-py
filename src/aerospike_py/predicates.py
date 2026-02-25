@@ -26,6 +26,7 @@ _GEO_UNSUPPORTED_MSG = "Geo filters are not yet supported; query execution will 
 
 def _warn_geo_unsupported() -> None:
     """Emit a FutureWarning for unsupported geo filter predicates."""
+    # stacklevel=3: user code → geo_*() → _warn_geo_unsupported() → warn()
     warnings.warn(_GEO_UNSUPPORTED_MSG, FutureWarning, stacklevel=3)
 
 

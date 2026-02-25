@@ -296,10 +296,12 @@ unsafe fn write_float_to_buffer(row_ptr: *mut u8, field: &FieldInfo, val: f64) -
 /// # Safety
 ///
 /// Same preconditions as [`write_int_to_buffer`].
-unsafe fn write_bytes_to_buffer(row_ptr: *mut u8, field: &FieldInfo, data: &[u8]) {
+unsafe fn write_bytes_to_buffer(row_ptr: *mut u8, field: &FieldInfo, data: &[u8]) -> PyResult<()> {
     debug_assert!(!row_ptr.is_null());
     if row_ptr.is_null() {
-        return;
+        return Err(PyValueError::new_err(
+            "null buffer pointer in write_bytes_to_buffer",
+        ));
     }
     let dst = row_ptr.add(field.offset);
     // Clamp copy length to field size to prevent buffer overrun
@@ -308,6 +310,7 @@ unsafe fn write_bytes_to_buffer(row_ptr: *mut u8, field: &FieldInfo, data: &[u8]
         ptr::copy_nonoverlapping(data.as_ptr(), dst, copy_len);
     }
     // np.zeros already zero-initialized, no need to zero-pad
+    Ok(())
 }
 
 // ── value → buffer dispatch ─────────────────────────────────────
@@ -360,15 +363,13 @@ unsafe fn write_value_to_buffer(
         }
         Value::Blob(bytes) => match field.kind {
             DtypeKind::FixedBytes | DtypeKind::VoidBytes => {
-                write_bytes_to_buffer(row_ptr, field, bytes);
-                Ok(())
+                write_bytes_to_buffer(row_ptr, field, bytes)
             }
             // sub-array: bytes blob written directly to buffer
             DtypeKind::Float | DtypeKind::Int | DtypeKind::Uint
                 if field.itemsize > field.base_itemsize =>
             {
-                write_bytes_to_buffer(row_ptr, field, bytes);
-                Ok(())
+                write_bytes_to_buffer(row_ptr, field, bytes)
             }
             _ => Err(PyTypeError::new_err(format!(
                 "cannot write bytes to numeric field '{}'",
@@ -377,8 +378,7 @@ unsafe fn write_value_to_buffer(
         },
         Value::String(s) => match field.kind {
             DtypeKind::FixedBytes | DtypeKind::VoidBytes => {
-                write_bytes_to_buffer(row_ptr, field, s.as_bytes());
-                Ok(())
+                write_bytes_to_buffer(row_ptr, field, s.as_bytes())
             }
             _ => Err(PyTypeError::new_err(format!(
                 "cannot write string to numeric field '{}'",
@@ -800,7 +800,7 @@ mod tests {
             kind: DtypeKind::FixedBytes,
         };
         unsafe {
-            write_bytes_to_buffer(buf.as_mut_ptr(), &field, b"abcdefgh");
+            write_bytes_to_buffer(buf.as_mut_ptr(), &field, b"abcdefgh").unwrap();
             // only first 4 bytes copied
             assert_eq!(&buf[0..4], b"abcd");
             assert_eq!(&buf[4..8], &[0, 0, 0, 0]);
@@ -818,7 +818,7 @@ mod tests {
             kind: DtypeKind::FixedBytes,
         };
         unsafe {
-            write_bytes_to_buffer(buf.as_mut_ptr(), &field, b"ab");
+            write_bytes_to_buffer(buf.as_mut_ptr(), &field, b"ab").unwrap();
             assert_eq!(&buf[0..2], b"ab");
             assert_eq!(&buf[2..8], &[0, 0, 0, 0, 0, 0]); // zero-padded
         }
@@ -944,7 +944,7 @@ mod tests {
             kind: DtypeKind::FixedBytes,
         };
         unsafe {
-            write_bytes_to_buffer(buf.as_mut_ptr(), &field, b"");
+            write_bytes_to_buffer(buf.as_mut_ptr(), &field, b"").unwrap();
             // Buffer should remain zero-initialized
             assert_eq!(&buf[0..4], &[0, 0, 0, 0]);
         }
