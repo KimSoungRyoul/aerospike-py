@@ -28,7 +28,7 @@ jobs:
 
     services:
       aerospike:
-        image: aerospike/aerospike-server:latest
+        image: aerospike/aerospike-server:7.2
         ports:
           - 3000:3000
           - 3001:3001
@@ -45,7 +45,7 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -58,7 +58,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
           enable-cache: true
@@ -105,7 +105,8 @@ jobs:
               }
               const results = JSON.parse(fs.readFileSync(path.join(dir, files[0]), 'utf8'));
 
-              let body = '## Benchmark Results\n\n';
+              const marker = '<!-- benchmark-results -->';
+              let body = marker + '\n## Benchmark Results\n\n';
 
               const sections = [
                 ['aerospike_py_sync', 'aerospike-py (Sync)'],
@@ -136,12 +137,29 @@ jobs:
               body += `> **Config**: ${env.count || 'N/A'} ops/round, ${env.rounds || 'N/A'} rounds, concurrency ${env.concurrency || 'N/A'}\n`;
               body += '> Benchmark run on `ubuntu-latest`. Results may vary.';
 
-              await github.rest.issues.createComment({
+              // Find existing comment with marker
+              const { data: comments } = await github.rest.issues.listComments({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: body
               });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  comment_id: existing.id,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: body
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: body
+                });
+              }
             } catch (e) {
               console.log('Could not parse benchmark results:', e.message);
             }
