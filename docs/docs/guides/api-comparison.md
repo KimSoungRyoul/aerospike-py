@@ -44,8 +44,8 @@ A comprehensive comparison between the **official C-based client** (`aerospike` 
 | Batch get | `client.get_many(keys)` | `client.batch_read(keys)` | **Method renamed**; returns `BatchRecords` |
 | Batch exists | `client.exists_many(keys)` | `client.batch_read(keys, bins=[])` | Use empty `bins` list for existence check |
 | Batch select | `client.select_many(keys, bins)` | `client.batch_read(keys, bins=bins)` | Unified under `batch_read` |
-| Batch operate | N/A | `client.batch_operate(keys, ops)` | **New in aerospike-py** |
-| Batch remove | N/A | `client.batch_remove(keys)` | **New in aerospike-py** |
+| Batch operate | `client.batch_operate(keys, ops)` | `client.batch_operate(keys, ops)` | Same; official client uses `aerospike_helpers` |
+| Batch remove | `client.batch_remove(keys)` | `client.batch_remove(keys)` | Same; official client uses `aerospike_helpers` |
 | Batch read (NumPy) | N/A | `client.batch_read(keys, _dtype=dt)` | **New in aerospike-py** |
 | Batch write (NumPy) | N/A | `client.batch_write_numpy(data, ...)` | **New in aerospike-py** |
 

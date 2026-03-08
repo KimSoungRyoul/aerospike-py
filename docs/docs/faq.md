@@ -32,7 +32,7 @@ Yes. A single `Client` instance can be shared safely across multiple threads. In
 import threading
 import aerospike_py
 
-client = aerospike_py.client({"hosts": [("127.0.0.1", 3000)]}).connect()
+client = aerospike_py.client({"hosts": [("127.0.0.1", 18710)]}).connect()  # port varies by deployment
 
 def worker(thread_id: int) -> None:
     key = ("test", "demo", f"thread_{thread_id}")
@@ -96,7 +96,7 @@ import aerospike_py
 # Initialize before creating the client
 aerospike_py.init_tracing()
 
-client = aerospike_py.client({"hosts": [("127.0.0.1", 3000)]}).connect()
+client = aerospike_py.client({"hosts": [("127.0.0.1", 18710)]}).connect()  # port varies by deployment
 # ... all operations are traced automatically ...
 client.close()
 
@@ -116,7 +116,7 @@ import aerospike_py
 # Start metrics server on port 9464
 aerospike_py.start_metrics_server(9464)
 
-client = aerospike_py.client({"hosts": [("127.0.0.1", 3000)]}).connect()
+client = aerospike_py.client({"hosts": [("127.0.0.1", 18710)]}).connect()  # port varies by deployment
 # ... operations are metered automatically ...
 client.close()
 
