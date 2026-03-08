@@ -78,7 +78,7 @@ aerospike_py.AerospikeTimeoutError: Operation timed out
 2. Check server health:
    ```python
    info = client.info_all("status")
-   print(info)  # should return "ok" from each node
+   print(info)  # returns list of (node_name, error_code, response) tuples
    ```
 
 ### "Client not connected" Error
@@ -110,9 +110,12 @@ aerospike_py.ClientError: Client is not connected
 
 3. For async code:
    ```python
-   async with aerospike_py.AsyncClient(config) as client:
-       await client.connect()
+   client = aerospike_py.AsyncClient(config)
+   await client.connect()
+   try:
        record = await client.get(key)
+   finally:
+       client.close()
    ```
 
 ## Build and Installation Issues
