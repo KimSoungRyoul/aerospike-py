@@ -2,7 +2,7 @@
 
 from typing import Any, TypedDict
 
-__all__ = ["Operation", "ListPolicy", "MapPolicy"]
+__all__ = ["Operation", "ListPolicy", "MapPolicy", "HLLPolicy"]
 
 Operation = dict[str, Any]
 """Operation dict for use with ``client.operate()`` and ``client.operate_ordered()``.
@@ -46,6 +46,16 @@ class MapPolicy(TypedDict, total=False):
 
     order: int
     write_mode: int
+
+
+class HLLPolicy(TypedDict, total=False):
+    """Policy for HyperLogLog CDT operations.
+
+    Keys:
+        flags: HLL write flags (HLL_WRITE_DEFAULT, HLL_WRITE_CREATE_ONLY, etc.).
+    """
+
+    flags: int
 
 
 _UNSET: Any = object()

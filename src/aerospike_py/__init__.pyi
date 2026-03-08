@@ -30,6 +30,7 @@ from aerospike_py.types import (
     WritePolicy as WritePolicy,
 )
 from aerospike_py._types import (
+    HLLPolicy as HLLPolicy,
     ListPolicy as ListPolicy,
     MapPolicy as MapPolicy,
     Operation as Operation,
