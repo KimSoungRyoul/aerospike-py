@@ -161,20 +161,16 @@ commands = [["pytest", "tests/concurrency/", "-v", "--ignore=tests/concurrency/t
 base_python = ["python3.14t"]
 commands = [["pytest", "tests/concurrency/", "-v"]]
 
-[tool.tox.env.fastapi]
+[tool.tox.env.feasibility]
 dependency_groups = ["test"]
-commands = [["pytest", "tests/feasibility/test_fastapi.py", "-v"]]
-
-[tool.tox.env.gunicorn]
-dependency_groups = ["test"]
-commands = [["pytest", "tests/feasibility/test_gunicorn.py", "-v"]]
+commands = [["pytest", "tests/feasibility/", "-v"]]
 
 [tool.tox.env.compat]
 dependency_groups = ["test", "compat"]
 commands = [["pytest", "tests/compatibility/", "-v"]]
 
 [tool.tox.env.all]
-dependency_groups = ["test"]
+dependency_groups = ["test", "compat"]
 commands = [["pytest", "tests/", "-v"]]
 
 # ── maturin ──────────────────────────────────────────────
