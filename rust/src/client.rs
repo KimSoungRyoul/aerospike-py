@@ -103,11 +103,11 @@ impl PyClient {
     }
 
     /// Check if the client is connected
-    fn is_connected(&self, _py: Python<'_>) -> PyResult<bool> {
+    fn is_connected(&self) -> bool {
         trace!("Checking client connection status");
         match &self.inner {
-            Some(client) => Ok(client.is_connected()),
-            None => Ok(false),
+            Some(client) => client.is_connected(),
+            None => false,
         }
     }
 
@@ -121,9 +121,8 @@ impl PyClient {
     }
 
     /// Get node names in the cluster
-    fn get_node_names(&self, _py: Python<'_>) -> PyResult<Vec<String>> {
-        let client = self.get_client()?;
-        Ok(client.node_names())
+    fn get_node_names(&self) -> PyResult<Vec<String>> {
+        Ok(self.get_client()?.node_names())
     }
 
     // ── Info ─────────────────────────────────────────────────────
