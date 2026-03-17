@@ -130,7 +130,7 @@ impl PyAsyncClient {
     /// Get node names (async).
     fn get_node_names<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.get_client()?;
-        future_into_py(py, async move { Ok(client.node_names().await) })
+        future_into_py(py, async move { Ok(client.node_names()) })
     }
 
     // ── Info ─────────────────────────────────────────────────────

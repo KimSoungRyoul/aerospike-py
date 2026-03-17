@@ -103,13 +103,10 @@ impl PyClient {
     }
 
     /// Check if the client is connected
-    fn is_connected(&self, py: Python<'_>) -> PyResult<bool> {
+    fn is_connected(&self, _py: Python<'_>) -> PyResult<bool> {
         trace!("Checking client connection status");
         match &self.inner {
-            Some(client) => {
-                let client = client.clone();
-                Ok(py.detach(|| RUNTIME.block_on(async { client.is_connected().await })))
-            }
+            Some(client) => Ok(client.is_connected()),
             None => Ok(false),
         }
     }
@@ -124,9 +121,9 @@ impl PyClient {
     }
 
     /// Get node names in the cluster
-    fn get_node_names(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    fn get_node_names(&self, _py: Python<'_>) -> PyResult<Vec<String>> {
         let client = self.get_client()?;
-        py.detach(|| RUNTIME.block_on(async { Ok(client.node_names().await) }))
+        Ok(client.node_names())
     }
 
     // ── Info ─────────────────────────────────────────────────────
