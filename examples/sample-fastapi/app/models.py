@@ -332,6 +332,33 @@ class VectorSearchResponse(BaseModel):
     total_found: int = Field(description="Total records successfully read")
 
 
+class NumpyBatchWriteRequest(BaseModel):
+    keys: list[AerospikeKey]
+    dtype: list[DtypeField] = Field(
+        ...,
+        description="Structured array dtype specification (must include _key field)",
+        examples=[
+            [
+                {"name": "_key", "dtype": "i4"},
+                {"name": "score", "dtype": "f8"},
+                {"name": "count", "dtype": "i4"},
+            ]
+        ],
+    )
+    data: list[list[Any]] = Field(
+        ...,
+        description="Row-oriented data: each inner list is one record matching the dtype order",
+        examples=[[[1, 0.95, 10], [2, 0.87, 20]]],
+    )
+    retry: int = Field(0, ge=0, le=100, description="Max retries for transient failures (0 = no retry)")
+
+
+class NumpyBatchWriteResponse(BaseModel):
+    count: int
+    failed_count: int = Field(0, description="Number of records that still failed after retries")
+    result_codes: list[int] = Field(description="Per-record result codes (0 = success)")
+
+
 # ── Observability models ──────────────────────────────────────
 
 

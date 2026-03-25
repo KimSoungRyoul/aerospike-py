@@ -1111,7 +1111,7 @@ impl PyClient {
     /// The dtype must contain a `_key` field (or custom key_field) for the record key,
     /// and remaining non-underscore-prefixed fields become bins.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (data, namespace, set_name, _dtype, key_field="_key", policy=None))]
+    #[pyo3(signature = (data, namespace, set_name, _dtype, key_field="_key", policy=None, retry=0))]
     fn batch_write_numpy(
         &self,
         py: Python<'_>,
@@ -1121,10 +1121,11 @@ impl PyClient {
         _dtype: &Bound<'_, PyAny>,
         key_field: &str,
         policy: Option<&Bound<'_, PyDict>>,
+        retry: u32,
     ) -> PyResult<Py<PyAny>> {
         debug!(
-            "batch_write_numpy: namespace={}, set={}",
-            namespace, set_name
+            "batch_write_numpy: namespace={}, set={}, retry={}",
+            namespace, set_name, retry
         );
         let client = self.get_client()?.clone();
         let batch_policy = crate::policy::batch_policy::parse_batch_policy(policy)?;
@@ -1151,6 +1152,7 @@ impl PyClient {
                     &set,
                     parent_ctx,
                     conn_info,
+                    retry,
                 )
                 .await
             })
