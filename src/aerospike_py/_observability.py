@@ -114,11 +114,17 @@ def start_metrics_server(port: int = 9464) -> None:
         old_server = _metrics_server
         old_thread = _metrics_server_thread
 
-        # Same-port restart: must shut down old server first to release the port.
+        # Same-port restart: shut down and close old server to release the socket.
         if old_server is not None and old_server.server_address[1] == port:
             old_server.shutdown()
+            old_server.server_close()
             if old_thread is not None:
                 old_thread.join(timeout=5)
+                if old_thread.is_alive():
+                    logger.warning(
+                        "Old metrics server thread did not stop within 5 seconds "
+                        "during same-port restart; proceeding anyway"
+                    )
             old_server = None
             old_thread = None
 
@@ -131,6 +137,7 @@ def start_metrics_server(port: int = 9464) -> None:
         # New server is running; tear down the old one if not already done.
         if old_server is not None:
             old_server.shutdown()
+            old_server.server_close()
             if old_thread is not None:
                 old_thread.join(timeout=5)
 
@@ -145,6 +152,7 @@ def stop_metrics_server() -> None:
     with _metrics_lock:
         if _metrics_server is not None:
             _metrics_server.shutdown()
+            _metrics_server.server_close()
             if _metrics_server_thread is not None:
                 _metrics_server_thread.join(timeout=5)
                 if _metrics_server_thread.is_alive():
