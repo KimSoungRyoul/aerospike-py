@@ -116,8 +116,11 @@ def start_metrics_server(port: int = 9464) -> None:
 
         # Same-port restart: shut down and close old server to release the socket.
         if old_server is not None and old_server.server_address[1] == port:
-            old_server.shutdown()
-            old_server.server_close()
+            try:
+                old_server.shutdown()
+                old_server.server_close()
+            except Exception:
+                logger.exception("Error shutting down old metrics server during same-port restart")
             if old_thread is not None:
                 old_thread.join(timeout=5)
                 if old_thread.is_alive():
@@ -163,9 +166,6 @@ def stop_metrics_server() -> None:
                         "Metrics server thread did not stop within 5 seconds; "
                         "thread is daemonic and will be terminated at interpreter exit"
                     )
-                    # Keep references so start_metrics_server can detect
-                    # the still-bound port instead of silently losing it.
-                    return
             _metrics_server = None
             _metrics_server_thread = None
 
