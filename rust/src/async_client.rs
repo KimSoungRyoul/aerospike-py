@@ -629,7 +629,7 @@ impl PyAsyncClient {
         let dtype_py: Option<Py<PyAny>> = _dtype.map(|d| d.clone().unbind());
 
         future_into_py(py, async move {
-            let _permit = limiter.acquire().await?;
+            let _permit = limiter.acquire_named("batch_read").await?;
             let results = client_ops::do_batch_read(&client, &args).await?;
             Python::attach(|py| {
                 if use_numpy {
@@ -706,7 +706,7 @@ impl PyAsyncClient {
         let set = set_name.to_string();
 
         future_into_py(py, async move {
-            let _permit = limiter.acquire().await?;
+            let _permit = limiter.acquire_named("batch_write_numpy").await?;
             let results = client_ops::do_batch_write(
                 &client,
                 &batch_policy,
