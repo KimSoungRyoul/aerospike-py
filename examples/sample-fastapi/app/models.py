@@ -313,7 +313,7 @@ class VectorSearchRequest(BaseModel):
     keys: list[AerospikeKey]
     query_vector: list[float] = Field(..., description="Query vector for similarity search")
     embedding_bin: str = Field("embedding", description="Bin name storing the vector blob")
-    embedding_dim: int = Field(..., description="Vector dimensionality", examples=[768])
+    embedding_dim: int = Field(..., ge=1, description="Vector dimensionality", examples=[768])
     extra_bins: list[str] | None = Field(
         None,
         description="Additional bins to return alongside similarity scores",
@@ -369,3 +369,7 @@ class LogLevelRequest(BaseModel):
         le=4,
         description="Log level: -1=OFF, 0=ERROR, 1=WARN, 2=INFO, 3=DEBUG, 4=TRACE",
     )
+
+
+class MetricsToggleRequest(BaseModel):
+    enabled: bool = Field(..., description="Enable or disable metrics collection")

@@ -40,9 +40,7 @@ def _field_to_json(arr: np.ndarray) -> list[Any]:
         return [base64.b64encode(v).decode() for v in arr]
     if arr.dtype.kind == "V":  # void → base64
         return [base64.b64encode(bytes(v)).decode() for v in arr]
-    if arr.ndim > 1:  # sub-array → nested list
-        return arr.tolist()
-    return arr.tolist()
+    return arr.tolist()  # numeric scalar or sub-array fields
 
 
 @router.post("/read", response_model=NumpyBatchReadResponse)
@@ -153,6 +151,17 @@ async def vector_search(
     dim = body.embedding_dim
     blob_size = dim * 4  # float32
 
+    # Validate query_vector before I/O to avoid wasted batch reads
+    query = np.array(body.query_vector, dtype=np.float32)
+    if len(query) != dim:
+        raise HTTPException(
+            status_code=422,
+            detail=f"query_vector length {len(query)} does not match embedding_dim {dim}",
+        )
+    query_norm = float(np.linalg.norm(query))
+    if not np.isfinite(query_norm) or query_norm == 0.0:
+        raise HTTPException(status_code=422, detail="query_vector must be finite and non-zero")
+
     # Build dtype: embedding (bytes) + extra bins (float64)
     dtype_spec: list[tuple] = [(body.embedding_bin, f"S{blob_size}")]
     if body.extra_bins:
@@ -165,46 +174,44 @@ async def vector_search(
     result = await client.batch_read(keys, bins=bin_names, _dtype=dtype)
 
     ok_mask = result.result_codes == 0
-    total_found = int(ok_mask.sum())
 
-    if total_found == 0:
+    if not ok_mask.any():
         return VectorSearchResponse(results=[], total_found=0)
 
-    # bytes → float32 vectors
+    # bytes → float32 vectors (skip records with wrong blob size or non-finite values)
     raw_blobs = result.batch_records[body.embedding_bin]
     all_vectors = np.zeros((len(raw_blobs), dim), dtype=np.float32)
+    valid_mask = ok_mask.copy()
     for i in range(len(raw_blobs)):
-        if ok_mask[i] and len(raw_blobs[i]) == blob_size:
-            all_vectors[i] = np.frombuffer(raw_blobs[i], dtype=np.float32)
-
-    query = np.array(body.query_vector, dtype=np.float32)
-    if len(query) != dim:
-        raise HTTPException(
-            status_code=422,
-            detail=f"query_vector length {len(query)} does not match embedding_dim {dim}",
-        )
+        if ok_mask[i]:
+            if len(raw_blobs[i]) == blob_size:
+                vec = np.frombuffer(raw_blobs[i], dtype=np.float32)
+                if np.all(np.isfinite(vec)):
+                    all_vectors[i] = vec
+                else:
+                    valid_mask[i] = False
+            else:
+                valid_mask[i] = False
 
     # Cosine similarity (vectorized)
-    query_norm = np.linalg.norm(query)
-    if query_norm == 0.0:
-        raise HTTPException(status_code=400, detail="Query vector must be non-zero")
     vec_norms = np.linalg.norm(all_vectors, axis=1)
     # Guard against zero-norm stored vectors
     safe_norms = np.where(vec_norms > 0, vec_norms, 1.0)
     similarities = (all_vectors @ query) / (safe_norms * query_norm)
-    # Exclude failed records from ranking
-    similarities = np.where(ok_mask, similarities, -2.0)
+    # Exclude failed/invalid records from ranking
+    similarities = np.where(valid_mask, similarities, -2.0)
 
-    # top-k
-    top_k = min(body.top_k, total_found)
-    top_indices = np.argsort(similarities)[::-1][:top_k]
+    # top-k: filter to valid indices first, then take top_k by similarity
+    valid_indices = np.where(valid_mask)[0]
+    valid_sims = similarities[valid_indices]
+    top_k = min(body.top_k, len(valid_indices))
+    top_within_valid = np.argsort(valid_sims)[::-1][:top_k]
+    top_indices = valid_indices[top_within_valid]
 
     results = []
     pk_list = [k.key for k in body.keys]
     for idx in top_indices:
         idx = int(idx)
-        if not ok_mask[idx]:
-            continue
         extra = {}
         if body.extra_bins:
             for b in body.extra_bins:
@@ -217,4 +224,4 @@ async def vector_search(
             )
         )
 
-    return VectorSearchResponse(results=results, total_found=total_found)
+    return VectorSearchResponse(results=results, total_found=int(valid_mask.sum()))

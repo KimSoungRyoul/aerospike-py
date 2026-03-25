@@ -145,4 +145,18 @@ mod tests {
         let result = limiter.acquire().await;
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_acquire_named_includes_op_in_error() {
+        let limiter = OperationLimiter::new(1, 50);
+        let _p = limiter.acquire_named("batch_read").await.unwrap();
+
+        let result = limiter.acquire_named("batch_read").await;
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("batch_read"),
+            "Error message should include the operation name, got: {err_msg}"
+        );
+    }
 }
