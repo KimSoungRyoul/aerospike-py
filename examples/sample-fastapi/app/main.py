@@ -6,6 +6,7 @@ from fastapi import FastAPI
 import aerospike_py
 from aerospike_py import AsyncClient
 from app.config import settings
+from app.exception_handlers import register_exception_handlers
 from app.routers import (
     admin_roles,
     admin_users,
@@ -28,19 +29,25 @@ async def lifespan(app: FastAPI):
     # Logging
     aerospike_py.set_log_level(settings.log_level)
 
+    # Metrics
+    aerospike_py.set_metrics_enabled(settings.metrics_enabled)
+
     # Tracing (reads OTEL_EXPORTER_OTLP_ENDPOINT env var)
     os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", settings.otel_endpoint)
     os.environ.setdefault("OTEL_SERVICE_NAME", settings.otel_service_name)
     aerospike_py.init_tracing()
     app.state.tracing_enabled = True
 
-    # Aerospike client
-    client = AsyncClient(
-        {
-            "hosts": [(settings.aerospike_host, settings.aerospike_port)],
-            "policies": {"key": aerospike_py.POLICY_KEY_SEND},
-        }
-    )
+    # Aerospike client with backpressure config
+    config: dict = {
+        "hosts": [(settings.aerospike_host, settings.aerospike_port)],
+        "policies": {"key": aerospike_py.POLICY_KEY_SEND},
+    }
+    if settings.max_concurrent_ops > 0:
+        config["max_concurrent_operations"] = settings.max_concurrent_ops
+        config["backpressure_timeout_ms"] = settings.backpressure_timeout_ms
+
+    client = AsyncClient(config)
     await client.connect()
     app.state.aerospike = client
 
@@ -58,6 +65,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+register_exception_handlers(app)
+
 app.include_router(users.router)
 app.include_router(records.router)
 app.include_router(operations.router)
@@ -74,4 +83,18 @@ app.include_router(observability.router)
 
 @app.get("/health")
 async def health():
+    """Liveness probe — always returns ok."""
     return {"status": "ok"}
+
+
+@app.get("/ready")
+async def readiness():
+    """Readiness probe — verifies Aerospike cluster connectivity."""
+    client: AsyncClient | None = getattr(app.state, "aerospike", None)
+    if client is None or not client.is_connected():
+        return {"status": "not_ready", "reason": "aerospike client not connected"}
+    try:
+        nodes = client.get_node_names()
+        return {"status": "ready", "nodes": len(nodes)}
+    except Exception as e:
+        return {"status": "not_ready", "reason": str(e)}

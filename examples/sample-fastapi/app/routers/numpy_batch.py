@@ -1,4 +1,4 @@
-"""Numpy batch_read API — columnar batch read and vector similarity search."""
+"""Numpy batch API — columnar batch read, batch write, and vector similarity search."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from app.dependencies import get_client
 from app.models import (
     NumpyBatchReadRequest,
     NumpyBatchReadResponse,
+    NumpyBatchWriteRequest,
+    NumpyBatchWriteResponse,
     VectorSearchRequest,
     VectorSearchResponse,
     VectorSearchResult,
@@ -82,6 +84,30 @@ async def numpy_batch_read(
         keys=pk_list,
         count=len(result.batch_records),
     )
+
+
+@router.post("/write", response_model=NumpyBatchWriteResponse)
+async def numpy_batch_write(
+    body: NumpyBatchWriteRequest,
+    client: AsyncClient = Depends(get_client),
+):
+    """Write multiple records from a JSON payload via numpy batch_write_numpy.
+
+    Converts the incoming row data into a numpy structured array and calls
+    the high-performance batch_write_numpy API.
+    """
+    try:
+        dtype = _build_dtype(body.dtype)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid dtype: {e}") from e
+
+    try:
+        data = np.array([tuple(row) for row in body.rows], dtype=dtype)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"Row data does not match dtype: {e}") from e
+
+    results = await client.batch_write_numpy(data, body.namespace, body.set_name, dtype, key_field=body.key_field)
+    return NumpyBatchWriteResponse(written=len(results))
 
 
 @router.post("/vector-search", response_model=VectorSearchResponse)

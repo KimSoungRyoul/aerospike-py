@@ -332,6 +332,35 @@ class VectorSearchResponse(BaseModel):
     total_found: int = Field(description="Total records successfully read")
 
 
+# ── Numpy batch write models ──────────────────────────────────
+
+
+class NumpyBatchWriteRequest(BaseModel):
+    namespace: str = Field(..., examples=["test"])
+    set_name: str = Field(..., examples=["sensors"])
+    dtype: list[DtypeField] = Field(
+        ...,
+        description="Structured array dtype specification (must include a key field)",
+        examples=[
+            [
+                {"name": "_key", "dtype": "i4"},
+                {"name": "temperature", "dtype": "f8"},
+                {"name": "humidity", "dtype": "f4"},
+            ]
+        ],
+    )
+    key_field: str = Field("_key", description="Dtype field used as the record primary key")
+    rows: list[list[Any]] = Field(
+        ...,
+        description="Row data as a 2D list matching the dtype specification",
+        examples=[[[1, 23.5, 0.65], [2, 19.8, 0.72]]],
+    )
+
+
+class NumpyBatchWriteResponse(BaseModel):
+    written: int = Field(description="Number of records written")
+
+
 # ── Observability models ──────────────────────────────────────
 
 
