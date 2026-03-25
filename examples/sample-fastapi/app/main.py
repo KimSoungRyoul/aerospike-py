@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -101,6 +102,7 @@ async def readiness():
         nodes = client.get_node_names()
         return {"status": "ready", "nodes": len(nodes)}
     except Exception as e:
+        logging.getLogger("aerospike_py.fastapi").warning("Readiness probe failed: %s", e)
         return JSONResponse(
             status_code=503,
             content={"status": "not_ready", "reason": str(e)},
