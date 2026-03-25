@@ -2131,6 +2131,18 @@ def is_metrics_enabled() -> bool:
     """
     ...
 
+def dropped_log_count() -> int:
+    """Return the number of log messages dropped because the GIL was unavailable.
+
+    When the Rust logging bridge cannot acquire the Python GIL (e.g. during
+    interpreter shutdown), log messages are counted as dropped. WARN and ERROR
+    level messages are still emitted to stderr as a fallback.
+
+    Returns:
+        Count of dropped messages since process start.
+    """
+    ...
+
 def start_metrics_server(port: int = 9464) -> None:
     """Start a background HTTP server serving ``/metrics`` for Prometheus.
 

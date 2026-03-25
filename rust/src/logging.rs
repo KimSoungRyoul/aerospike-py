@@ -50,24 +50,31 @@ impl Log for PyLogger {
         // Try to acquire the GIL and forward to Python.
         // If we can't (e.g., during shutdown), fall back to stderr for
         // WARN/ERROR messages so critical diagnostics are not lost.
-        let ok = Python::try_attach(|py| -> PyResult<()> {
+        match Python::try_attach(|py| -> PyResult<()> {
             let logging = py.import("logging")?;
             let logger = logging.call_method1("getLogger", (target,))?;
             logger.call_method1("log", (level, &message))?;
             Ok(())
-        })
-        .map(|r| r.is_ok())
-        .unwrap_or(false);
-
-        if !ok {
-            DROPPED_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
-            // Emit WARN+ messages to stderr so operators can still see critical info
-            if record.level() <= Level::Warn {
+        }) {
+            Some(Ok(())) => {} // Successfully forwarded to Python
+            None => {
+                // GIL genuinely unavailable (interpreter shutdown)
+                DROPPED_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
+                if record.level() <= Level::Warn {
+                    eprintln!(
+                        "[aerospike-py/{}] {}: {}",
+                        record.level(),
+                        target,
+                        message
+                    );
+                }
+            }
+            Some(Err(_)) => {
+                // GIL acquired but Python logging call failed
+                // (e.g. misconfigured handler). Always emit to stderr.
                 eprintln!(
-                    "[aerospike-py/{}] {}: {}",
-                    record.level(),
-                    target,
-                    message
+                    "[aerospike-py/LOGGING-ERROR] {}: {}",
+                    target, message
                 );
             }
         }
