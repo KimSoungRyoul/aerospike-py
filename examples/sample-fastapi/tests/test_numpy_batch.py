@@ -284,15 +284,13 @@ def test_vector_search_zero_embedding_dim_rejected(client):
     assert resp.status_code == 422
 
 
-def test_vector_search_nan_query_rejected(client, aerospike_client, cleanup):
-    """NaN이 포함된 query_vector는 422 에러."""
-    _seed_vectors(aerospike_client, cleanup)
-
+def test_vector_search_zero_norm_query_rejected(client):
+    """All-zero query_vector (zero-norm)는 422 에러."""
     resp = client.post(
         "/numpy-batch/vector-search",
         json={
             "keys": [_key_body("v_0")],
-            "query_vector": [float("nan")] * DIM,
+            "query_vector": [0.0] * DIM,
             "embedding_bin": "embedding",
             "embedding_dim": DIM,
             "top_k": 1,
@@ -300,7 +298,7 @@ def test_vector_search_nan_query_rejected(client, aerospike_client, cleanup):
     )
 
     assert resp.status_code == 422
-    assert "finite" in resp.json()["detail"]
+    assert "non-zero" in resp.json()["detail"]
 
 
 def test_vector_search_dim_mismatch_rejected(client, aerospike_client, cleanup):

@@ -329,7 +329,7 @@ class VectorSearchResult(BaseModel):
 
 class VectorSearchResponse(BaseModel):
     results: list[VectorSearchResult]
-    total_found: int = Field(description="Total records successfully read")
+    total_found: int = Field(description="Total records with valid embeddings used for scoring")
 
 
 # ── Numpy batch write models ──────────────────────────────────

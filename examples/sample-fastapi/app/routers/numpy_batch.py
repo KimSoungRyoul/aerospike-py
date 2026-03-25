@@ -157,9 +157,8 @@ async def vector_search(
     result = await client.batch_read(keys, bins=bin_names, _dtype=dtype)
 
     ok_mask = result.result_codes == 0
-    total_found = int(ok_mask.sum())
 
-    if total_found == 0:
+    if not ok_mask.any():
         return VectorSearchResponse(results=[], total_found=0)
 
     # bytes → float32 vectors (skip records with wrong blob size or non-finite values)
@@ -207,4 +206,4 @@ async def vector_search(
             )
         )
 
-    return VectorSearchResponse(results=results, total_found=total_found)
+    return VectorSearchResponse(results=results, total_found=int(valid_mask.sum()))
