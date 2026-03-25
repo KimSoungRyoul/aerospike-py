@@ -151,8 +151,11 @@ def stop_metrics_server() -> None:
 
     with _metrics_lock:
         if _metrics_server is not None:
-            _metrics_server.shutdown()
-            _metrics_server.server_close()
+            try:
+                _metrics_server.shutdown()
+                _metrics_server.server_close()
+            except Exception:
+                logger.exception("Error shutting down metrics server")
             if _metrics_server_thread is not None:
                 _metrics_server_thread.join(timeout=5)
                 if _metrics_server_thread.is_alive():
