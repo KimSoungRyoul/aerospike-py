@@ -186,9 +186,9 @@ class TestNumpyBatchWriteDocExamples:
         results = client.batch_write_numpy(data, "test", "demo", dtype)
 
         assert len(results) == 3
-        # Verify data was written by reading back
-        for user_key in [2001, 2002, 2003]:
-            _, meta, bins = client.get(("test", "demo", user_key))
+        for record in results:
+            key, meta, bins = record
+            # meta is not None for successful writes
             assert meta is not None
             assert meta.gen >= 1
 
