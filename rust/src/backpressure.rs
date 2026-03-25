@@ -52,7 +52,11 @@ impl OperationLimiter {
         }
     }
 
-    /// Acquire a permit for one operation (convenience wrapper without op name).
+    /// Acquire a permit without identifying the operation type.
+    ///
+    /// Prefer [`acquire_named`](Self::acquire_named) in new code so that
+    /// timeout errors include the operation name for diagnostics.
+    /// This wrapper passes `"unknown"` as the operation name.
     pub async fn acquire(&self) -> PyResult<OperationPermit> {
         self.acquire_named("unknown").await
     }
