@@ -82,7 +82,7 @@ async def numpy_batch_read(
         },
         result_codes=result.result_codes.tolist(),
         keys=pk_list,
-        count=len(result.batch_records),
+        count=int((result.result_codes == 0).sum()),
     )
 
 
@@ -177,6 +177,11 @@ async def vector_search(
             all_vectors[i] = np.frombuffer(raw_blobs[i], dtype=np.float32)
 
     query = np.array(body.query_vector, dtype=np.float32)
+    if len(query) != dim:
+        raise HTTPException(
+            status_code=422,
+            detail=f"query_vector length {len(query)} does not match embedding_dim {dim}",
+        )
 
     # Cosine similarity (vectorized)
     query_norm = np.linalg.norm(query)
