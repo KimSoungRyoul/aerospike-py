@@ -895,13 +895,10 @@ pub fn numpy_to_records(
             set_name.to_string()
         };
 
-        // Build the Key
-        let key = Key {
-            namespace: ns,
-            set_name: set,
-            user_key: Some(key_value),
-            digest: [0u8; 20],
-        };
+        // Build the Key — must use Key::new() to compute the RIPEMD-160 digest
+        let key = Key::new(ns, set, key_value).map_err(|e| {
+            PyValueError::new_err(format!("failed to create key for row {}: {}", i, e))
+        })?;
 
         // Extract bin values
         let mut bins = Vec::with_capacity(bin_fields.len());
