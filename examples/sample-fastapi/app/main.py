@@ -34,9 +34,10 @@ async def lifespan(app: FastAPI):
     # Metrics
     aerospike_py.set_metrics_enabled(settings.metrics_enabled)
 
-    # Tracing (reads OTEL_EXPORTER_OTLP_ENDPOINT env var)
-    os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", settings.otel_endpoint)
-    os.environ.setdefault("OTEL_SERVICE_NAME", settings.otel_service_name)
+    # Tracing — application config takes precedence over stale env vars.
+    # Use direct assignment so the Pydantic settings always wins.
+    os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = settings.otel_endpoint
+    os.environ["OTEL_SERVICE_NAME"] = settings.otel_service_name
     aerospike_py.init_tracing()
     app.state.tracing_enabled = os.environ.get("OTEL_SDK_DISABLED", "").lower() != "true"
 

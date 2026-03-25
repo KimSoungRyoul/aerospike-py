@@ -141,9 +141,9 @@ async def vector_search(
             status_code=422,
             detail=f"query_vector length {len(query)} does not match embedding_dim {dim}",
         )
-    query_norm = np.linalg.norm(query)
-    if query_norm == 0.0:
-        raise HTTPException(status_code=422, detail="query_vector must be non-zero")
+    query_norm = float(np.linalg.norm(query))
+    if not np.isfinite(query_norm) or query_norm == 0.0:
+        raise HTTPException(status_code=422, detail="query_vector must be finite and non-zero")
 
     # dtype 구성: embedding (bytes) + extra bins (float64)
     dtype_spec: list[tuple] = [(body.embedding_bin, f"S{blob_size}")]
@@ -180,17 +180,17 @@ async def vector_search(
     similarities = (all_vectors @ query) / (safe_norms * query_norm)
     similarities = np.where(valid_mask, similarities, -2.0)  # 실패/잘못된 blob 레코드 제외
 
-    # top-k
-    valid_found = int(valid_mask.sum())
-    top_k = min(body.top_k, valid_found)
-    top_indices = np.argsort(similarities)[::-1][:top_k]
+    # top-k: filter to valid indices first, then take top_k by similarity
+    valid_indices = np.where(valid_mask)[0]
+    valid_sims = similarities[valid_indices]
+    top_k = min(body.top_k, len(valid_indices))
+    top_within_valid = np.argsort(valid_sims)[::-1][:top_k]
+    top_indices = valid_indices[top_within_valid]
 
     results = []
     pk_list = [k.key for k in body.keys]
     for idx in top_indices:
         idx = int(idx)
-        if not valid_mask[idx]:
-            continue
         extra = {}
         if body.extra_bins:
             for b in body.extra_bins:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import time
@@ -198,6 +199,11 @@ def test_tracing_spans_sent_to_jaeger(aerospike_container, jaeger_container, aer
         assert found_aerospike_tag, "No span with db.system.name=aerospike found"
 
     finally:
+        # Guarantee tracing shutdown even if TestClient exit fails, to avoid
+        # a stale OTLP exporter pointing at the now-stopped Jaeger container.
+        with contextlib.suppress(Exception):
+            aerospike_py.shutdown_tracing()
+
         app.router.lifespan_context = original_lifespan
         # Restore original app state so the session-scoped client fixture is not affected
         if original_aerospike is not None:
@@ -206,5 +212,5 @@ def test_tracing_spans_sent_to_jaeger(aerospike_container, jaeger_container, aer
         os.environ.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
         os.environ.pop("OTEL_SERVICE_NAME", None)
         # Re-initialize tracing with SDK disabled for remaining tests
-        os.environ.setdefault("OTEL_SDK_DISABLED", "true")
+        os.environ["OTEL_SDK_DISABLED"] = "true"
         aerospike_py.init_tracing()
