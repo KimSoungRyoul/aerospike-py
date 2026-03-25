@@ -33,7 +33,6 @@ def test_get_user_not_found(client):
     resp = client.get("/users/nonexistent-user-xyz")
 
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "User not found"
 
 
 def test_update_user(client, aerospike_client, cleanup):

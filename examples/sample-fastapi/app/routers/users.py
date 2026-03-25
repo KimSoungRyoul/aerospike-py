@@ -5,7 +5,6 @@ import uuid
 from fastapi import APIRouter, HTTPException, Request
 
 from aerospike_py import AsyncClient
-from aerospike_py.exception import RecordNotFound
 from app.config import settings
 from app.models import MessageResponse, UserCreate, UserResponse, UserUpdate
 
@@ -49,26 +48,26 @@ async def create_user(body: UserCreate, request: Request):
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: str, request: Request):
-    """Get a user by ID."""
+    """Get a user by ID.
+
+    RecordNotFound is handled by the global exception handler (→ 404).
+    """
     client = _get_client(request)
-    try:
-        _, meta, bins = await client.get(_key(user_id))
-    except RecordNotFound:
-        raise HTTPException(status_code=404, detail="User not found") from None
+    _, meta, bins = await client.get(_key(user_id))
     return _to_response(user_id, meta, bins)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(user_id: str, body: UserUpdate, request: Request):
-    """Update an existing user (partial update)."""
+    """Update an existing user (partial update).
+
+    RecordNotFound from the initial get is handled by the global handler (→ 404).
+    """
     client = _get_client(request)
     key = _key(user_id)
 
-    # Verify the record exists first
-    try:
-        await client.get(key)
-    except RecordNotFound:
-        raise HTTPException(status_code=404, detail="User not found") from None
+    # Verify the record exists first (RecordNotFound → 404 via global handler)
+    await client.get(key)
 
     update_bins = body.model_dump(exclude_none=True)
     if not update_bins:
@@ -82,12 +81,12 @@ async def update_user(user_id: str, body: UserUpdate, request: Request):
 
 @router.delete("/{user_id}", response_model=MessageResponse)
 async def delete_user(user_id: str, request: Request):
-    """Delete a user by ID."""
+    """Delete a user by ID.
+
+    RecordNotFound is handled by the global exception handler (→ 404).
+    """
     client = _get_client(request)
-    try:
-        await client.remove(_key(user_id))
-    except RecordNotFound:
-        raise HTTPException(status_code=404, detail="User not found") from None
+    await client.remove(_key(user_id))
     return MessageResponse(message=f"User {user_id} deleted")
 
 

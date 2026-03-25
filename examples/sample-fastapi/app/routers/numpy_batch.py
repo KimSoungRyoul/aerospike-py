@@ -1,4 +1,4 @@
-"""Numpy batch_read API — columnar batch read and vector similarity search."""
+"""Numpy batch API — columnar batch read, batch write, and vector similarity search."""
 
 from __future__ import annotations
 

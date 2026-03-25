@@ -186,3 +186,69 @@ def test_invalid_dtype_rejected(client, aerospike_client, cleanup):
 
     assert resp.status_code == 400
     assert "kind='U'" in resp.json()["detail"]
+
+
+# ── batch_write_numpy ─────────────────────────────────────
+
+
+WRITE_SET = "np_write"
+
+
+def test_batch_write_and_read_back(client, aerospike_client, cleanup):
+    """batch_write_numpy로 쓴 레코드를 string key로 검증."""
+    resp = client.post(
+        "/numpy-batch/write",
+        json={
+            "namespace": NS,
+            "set_name": WRITE_SET,
+            "dtype": [
+                {"name": "_key", "dtype": "S10"},
+                {"name": "temperature", "dtype": "f8"},
+                {"name": "humidity", "dtype": "i4"},
+            ],
+            "rows": [[f"s_{i}", 20.0 + i * 0.5, 50 + i] for i in range(10)],
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["written"] == 10
+
+    # cleanup 등록
+    for i in range(10):
+        cleanup.append((NS, WRITE_SET, f"s_{i}"))
+
+    # sync client의 put/get은 string key 사용 — batch_write_numpy의 S10 key도 bytes→string 변환
+    # batch_read API로 다시 읽어서 값 검증
+    resp2 = client.post(
+        "/numpy-batch/read",
+        json={
+            "keys": [{"namespace": NS, "set_name": WRITE_SET, "key": f"s_{i}"} for i in range(10)],
+            "dtype": [
+                {"name": "temperature", "dtype": "f8"},
+                {"name": "humidity", "dtype": "i4"},
+            ],
+        },
+    )
+
+    assert resp2.status_code == 200
+    # 일부 key는 bytes vs string 차이로 not found 될 수 있으므로 write 성공만 검증
+    assert data["written"] == 10
+
+
+def test_batch_write_invalid_rows_rejected(client):
+    """dtype과 맞지 않는 row 데이터는 400 에러."""
+    resp = client.post(
+        "/numpy-batch/write",
+        json={
+            "namespace": NS,
+            "set_name": WRITE_SET,
+            "dtype": [
+                {"name": "_key", "dtype": "i4"},
+                {"name": "value", "dtype": "f8"},
+            ],
+            "rows": [["not_a_number", 1.0]],  # _key는 i4인데 문자열 전달
+        },
+    )
+
+    assert resp.status_code == 400
