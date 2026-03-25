@@ -153,7 +153,8 @@ mod tests {
         assert!(result.is_err());
         // Verify the error message contains the operation name by
         // inspecting the PyErr via Python's GIL.
-        Python::with_gil(|py| {
+        Python::initialize();
+        Python::attach(|py| {
             let err = result.unwrap_err();
             let msg = err.value(py).to_string();
             assert!(
