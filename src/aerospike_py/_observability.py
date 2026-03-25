@@ -111,12 +111,15 @@ def start_metrics_server(port: int = 9464) -> None:
     global _metrics_server, _metrics_server_thread
 
     with _metrics_lock:
-        new_server = HTTPServer(("", port), _MetricsHandler)
-
+        # Shut down existing server first to release the port before binding a new one.
         if _metrics_server is not None:
             _metrics_server.shutdown()
+            if _metrics_server_thread is not None:
+                _metrics_server_thread.join(timeout=5)
+            _metrics_server = None
+            _metrics_server_thread = None
 
-        _metrics_server = new_server
+        _metrics_server = HTTPServer(("", port), _MetricsHandler)
         _metrics_server_thread = threading.Thread(target=_metrics_server.serve_forever, daemon=True)
         _metrics_server_thread.start()
 
@@ -136,6 +139,9 @@ def stop_metrics_server() -> None:
                             "Metrics server thread did not stop within 5 seconds; "
                             "thread is daemonic and will be terminated at interpreter exit"
                         )
+                        # Keep the thread reference so a subsequent start_metrics_server
+                        # can detect the still-bound port instead of silently losing it.
+                        return
             finally:
                 _metrics_server = None
                 _metrics_server_thread = None

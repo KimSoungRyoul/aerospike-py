@@ -52,7 +52,15 @@ class AsyncQuery:
     async def foreach(self, callback, policy=None) -> None:
         def _sync_foreach():
             def _cb(raw):
-                return callback(_wrap_record(raw))
+                result = callback(_wrap_record(raw))
+                if asyncio.iscoroutine(result):
+                    raise TypeError(
+                        "AsyncQuery.foreach does not support async callbacks — "
+                        "the callback runs inside a thread pool where no event loop "
+                        "is available. Use a synchronous callback, or collect results "
+                        "with query.results() and process them asynchronously."
+                    )
+                return result
 
             self._inner.foreach(_cb, policy)
 
@@ -102,7 +110,9 @@ class AsyncClient:
         Example:
             ```python
             client = await aerospike_py.AsyncClient(config).connect()
-            await client.connect("admin", "admin")
+
+            # With authentication
+            client = await aerospike_py.AsyncClient(config).connect("admin", "admin")
             ```
         """
         logger.info("Async client connecting")
@@ -144,6 +154,7 @@ class AsyncClient:
     async def info_all(self, command, policy=None) -> list[InfoNodeResult]:
         return [InfoNodeResult(*t) for t in await self._inner.info_all(command, policy)]
 
+    @catch_unexpected("AsyncClient.batch_read")
     async def batch_read(
         self, keys: list, bins: list[str] | None = None, policy: dict[str, Any] | None = None, _dtype: Any = None
     ) -> Any:

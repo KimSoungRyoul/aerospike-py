@@ -22,7 +22,7 @@ router = APIRouter(prefix="/numpy-batch", tags=["numpy-batch"])
 
 
 def _build_dtype(fields) -> np.dtype:
-    """DtypeField 리스트 → np.dtype 변환."""
+    """Convert a list of DtypeField models into a numpy dtype."""
     spec = []
     for f in fields:
         if f.shape:
@@ -33,7 +33,7 @@ def _build_dtype(fields) -> np.dtype:
 
 
 def _field_to_json(arr: np.ndarray) -> list[Any]:
-    """numpy 필드 배열을 JSON-serializable 리스트로 변환."""
+    """Convert a numpy field array to a JSON-serializable list."""
     if arr.dtype.kind == "S":  # bytes → base64
         return [base64.b64encode(v).decode() for v in arr]
     if arr.dtype.kind == "V":  # void → base64
@@ -97,7 +97,7 @@ async def vector_search(
     dim = body.embedding_dim
     blob_size = dim * 4  # float32
 
-    # dtype 구성: embedding (bytes) + extra bins (float64)
+    # Build dtype: embedding (bytes) + extra bins (float64)
     dtype_spec: list[tuple] = [(body.embedding_bin, f"S{blob_size}")]
     if body.extra_bins:
         for b in body.extra_bins:
@@ -126,10 +126,10 @@ async def vector_search(
     # cosine similarity (vectorized)
     query_norm = np.linalg.norm(query)
     vec_norms = np.linalg.norm(all_vectors, axis=1)
-    # 0-norm 방지
+    # Guard against zero-norm vectors
     safe_norms = np.where(vec_norms > 0, vec_norms, 1.0)
     similarities = (all_vectors @ query) / (safe_norms * query_norm)
-    similarities = np.where(ok_mask, similarities, -2.0)  # 실패 레코드 제외
+    similarities = np.where(ok_mask, similarities, -2.0)  # exclude failed records
 
     # top-k
     top_k = min(body.top_k, total_found)
@@ -144,7 +144,7 @@ async def vector_search(
         extra = {}
         if body.extra_bins:
             for b in body.extra_bins:
-                extra[b] = float(result.batch_records[idx][b])
+                extra[b] = float(result.batch_records[b][idx])
         results.append(
             VectorSearchResult(
                 key=pk_list[idx],

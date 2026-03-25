@@ -23,13 +23,15 @@ def _key(user_id: str) -> tuple[str, str, str]:
     return (NS, SET, user_id)
 
 
-def _to_response(user_id: str, meta: dict, bins: dict) -> UserResponse:
+def _to_response(user_id: str, meta, bins: dict) -> UserResponse:
+    if bins is None:
+        raise HTTPException(status_code=404, detail="Record has no bin data")
     return UserResponse(
         user_id=user_id,
         name=bins["name"],
         email=bins["email"],
         age=bins["age"],
-        generation=meta.gen,
+        generation=meta.gen if meta is not None else 0,
     )
 
 
@@ -100,8 +102,8 @@ async def list_users(request: Request):
     for key, meta, bins in records:
         if bins is None:
             continue
-        # query()는 aerospike-core 알파 제한으로 user_key=None을 반환하므로
-        # 생성 시 bins에 저장한 user_id를 우선 사용한다.
+        # query() returns user_key=None due to aerospike-core alpha limitation,
+        # so prefer the user_id stored in bins at creation time.
         user_id = bins.get("user_id") or (key[2] if key else None)
         if user_id is None or not isinstance(bins.get("name"), str):
             continue
