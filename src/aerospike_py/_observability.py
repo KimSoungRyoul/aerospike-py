@@ -115,6 +115,7 @@ def start_metrics_server(port: int = 9464) -> None:
 
         if _metrics_server is not None:
             _metrics_server.shutdown()
+            _metrics_server.server_close()
 
         _metrics_server = new_server
         _metrics_server_thread = threading.Thread(target=_metrics_server.serve_forever, daemon=True)
