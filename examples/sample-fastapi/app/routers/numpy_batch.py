@@ -118,11 +118,16 @@ async def numpy_batch_write(
 
     results = await client.batch_write_numpy(data, body.namespace, body.set_name, dtype, retry=body.retry)
 
+    # batch_write_numpy returns Record NamedTuples; a successful write has
+    # meta set (gen/ttl) while bins is always None for writes.  A failed
+    # record has both meta=None and bins=None.  Per-record result codes are
+    # not currently exposed through the Python wrapper, so this heuristic is
+    # the best available signal.
     result_codes = []
     failed_count = 0
     for r in results:
         code = 0
-        if r.meta is None and r.bins is None:
+        if r.meta is None:
             code = -1
             failed_count += 1
         result_codes.append(code)

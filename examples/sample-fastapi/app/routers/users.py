@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,6 +11,8 @@ from aerospike_py.exception import RecordNotFound
 from app.config import settings
 from app.dependencies import get_client
 from app.models import MessageResponse, UserCreate, UserResponse, UserUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -24,6 +27,8 @@ def _key(user_id: str) -> tuple[str, str, str]:
 def _to_response(user_id: str, meta, bins: dict | None) -> UserResponse:
     if bins is None:
         raise HTTPException(status_code=500, detail="Record exists but has no bin data")
+    if meta is None:
+        logger.warning("Unexpected None meta for record %s", user_id)
     return UserResponse(
         user_id=user_id,
         name=bins["name"],
