@@ -148,24 +148,27 @@ mod tests {
         assert!(permit.is_none());
     }
 
-    #[tokio::test]
-    async fn test_acquire_named_timeout_includes_op_name() {
-        let limiter = OperationLimiter::new(1, 50); // 50ms timeout
-        let _p = limiter.acquire_named("batch_read").await.unwrap();
-
-        let result = limiter.acquire_named("batch_read").await;
-        assert!(result.is_err());
-        // Verify the error message contains the operation name by
-        // inspecting the PyErr via Python's GIL.
+    #[test]
+    fn test_acquire_named_timeout_includes_op_name() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
         Python::initialize();
-        Python::attach(|py| {
-            let err = result.unwrap_err();
-            let msg = err.value(py).to_string();
-            assert!(
-                msg.contains("batch_read"),
-                "Error message should contain the operation name, got: {}",
-                msg
-            );
+        rt.block_on(async {
+            let limiter = OperationLimiter::new(1, 50); // 50ms timeout
+            let _p = limiter.acquire_named("batch_read").await.unwrap();
+
+            let result = limiter.acquire_named("batch_read").await;
+            assert!(result.is_err());
+            // Verify the error message contains the operation name by
+            // inspecting the PyErr via Python's GIL.
+            Python::attach(|py| {
+                let err = result.unwrap_err();
+                let msg = err.value(py).to_string();
+                assert!(
+                    msg.contains("batch_read"),
+                    "Error message should contain the operation name, got: {}",
+                    msg
+                );
+            });
         });
     }
 }
