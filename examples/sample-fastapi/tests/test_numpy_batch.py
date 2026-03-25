@@ -137,7 +137,8 @@ def test_batch_read_with_missing_keys(client, aerospike_client, cleanup):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["count"] == 15
+    # count는 성공한 레코드 수만 반영
+    assert data["count"] == 10
 
     # 처음 10개는 성공, 나머지 5개는 실패
     for i in range(10):
@@ -260,3 +261,25 @@ def test_batch_write_invalid_rows_rejected(client):
     )
 
     assert resp.status_code == 400
+
+
+# ── vector search validation ────────────────────────────────
+
+
+def test_vector_search_dim_mismatch_rejected(client, aerospike_client, cleanup):
+    """query_vector 길이와 embedding_dim 불일치 시 422 에러."""
+    _seed_vectors(aerospike_client, cleanup)
+
+    resp = client.post(
+        "/numpy-batch/vector-search",
+        json={
+            "keys": [_key_body("v_0")],
+            "query_vector": [0.1, 0.2],  # DIM=128인데 2-dim 벡터
+            "embedding_bin": "embedding",
+            "embedding_dim": DIM,
+            "top_k": 1,
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "does not match embedding_dim" in resp.json()["detail"]
