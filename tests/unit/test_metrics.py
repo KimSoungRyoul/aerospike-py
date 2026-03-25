@@ -177,7 +177,7 @@ class TestMetricsServer:
 
 class TestMetricsServerRestart:
     def test_restart_on_occupied_port_keeps_old_server(self):
-        """새 포트 바인딩 실패 시 기존 서버 유지 확인."""
+        """Verify that existing server is kept when binding to a new port fails."""
         port1 = _find_free_port()
         aerospike_py.start_metrics_server(port=port1)
 

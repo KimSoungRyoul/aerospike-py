@@ -130,21 +130,19 @@ def stop_metrics_server() -> None:
 
     with _metrics_lock:
         if _metrics_server is not None:
-            try:
-                _metrics_server.shutdown()
-                if _metrics_server_thread is not None:
-                    _metrics_server_thread.join(timeout=5)
-                    if _metrics_server_thread.is_alive():
-                        logger.warning(
-                            "Metrics server thread did not stop within 5 seconds; "
-                            "thread is daemonic and will be terminated at interpreter exit"
-                        )
-                        # Keep the thread reference so a subsequent start_metrics_server
-                        # can detect the still-bound port instead of silently losing it.
-                        return
-            finally:
-                _metrics_server = None
-                _metrics_server_thread = None
+            _metrics_server.shutdown()
+            if _metrics_server_thread is not None:
+                _metrics_server_thread.join(timeout=5)
+                if _metrics_server_thread.is_alive():
+                    logger.warning(
+                        "Metrics server thread did not stop within 5 seconds; "
+                        "thread is daemonic and will be terminated at interpreter exit"
+                    )
+                    # Keep references so start_metrics_server can detect
+                    # the still-bound port instead of silently losing it.
+                    return
+            _metrics_server = None
+            _metrics_server_thread = None
 
 
 def init_tracing() -> None:

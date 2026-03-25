@@ -23,9 +23,9 @@ def _key(user_id: str) -> tuple[str, str, str]:
     return (NS, SET, user_id)
 
 
-def _to_response(user_id: str, meta, bins: dict) -> UserResponse:
+def _to_response(user_id: str, meta, bins: dict | None) -> UserResponse:
     if bins is None:
-        raise HTTPException(status_code=404, detail="Record has no bin data")
+        raise HTTPException(status_code=500, detail="Record exists but has no bin data")
     return UserResponse(
         user_id=user_id,
         name=bins["name"],
