@@ -111,17 +111,31 @@ def start_metrics_server(port: int = 9464) -> None:
     global _metrics_server, _metrics_server_thread
 
     with _metrics_lock:
-        # Shut down existing server first to release the port before binding a new one.
-        if _metrics_server is not None:
-            _metrics_server.shutdown()
-            if _metrics_server_thread is not None:
-                _metrics_server_thread.join(timeout=5)
-            _metrics_server = None
-            _metrics_server_thread = None
+        old_server = _metrics_server
+        old_thread = _metrics_server_thread
 
-        _metrics_server = HTTPServer(("", port), _MetricsHandler)
-        _metrics_server_thread = threading.Thread(target=_metrics_server.serve_forever, daemon=True)
-        _metrics_server_thread.start()
+        # Same-port restart: must shut down old server first to release the port.
+        if old_server is not None and old_server.server_address[1] == port:
+            old_server.shutdown()
+            if old_thread is not None:
+                old_thread.join(timeout=5)
+            old_server = None
+            old_thread = None
+
+        # Bind the new port — if this raises OSError (port in use by another
+        # process), the existing server on a different port remains untouched.
+        new_server = HTTPServer(("", port), _MetricsHandler)
+        new_thread = threading.Thread(target=new_server.serve_forever, daemon=True)
+        new_thread.start()
+
+        # New server is running; tear down the old one if not already done.
+        if old_server is not None:
+            old_server.shutdown()
+            if old_thread is not None:
+                old_thread.join(timeout=5)
+
+        _metrics_server = new_server
+        _metrics_server_thread = new_thread
 
 
 def stop_metrics_server() -> None:
