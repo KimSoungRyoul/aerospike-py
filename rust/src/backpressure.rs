@@ -52,12 +52,20 @@ impl OperationLimiter {
         }
     }
 
+    /// Acquire a permit for one operation (convenience wrapper without op name).
+    pub async fn acquire(&self) -> PyResult<OperationPermit> {
+        self.acquire_named("unknown").await
+    }
+
     /// Acquire a permit for one operation.
     ///
     /// Returns `None` when the limiter is disabled (zero overhead path).
     /// Returns `Some(permit)` when a slot is available.
     /// Raises `BackpressureError` if the timeout expires while waiting.
-    pub async fn acquire(&self) -> PyResult<OperationPermit> {
+    ///
+    /// `op_name` is included in the error message to help diagnose which
+    /// operation type triggered the backpressure timeout.
+    pub async fn acquire_named(&self, op_name: &str) -> PyResult<OperationPermit> {
         let sem = match &self.semaphore {
             None => return Ok(None),
             Some(s) => s.clone(),
@@ -68,8 +76,8 @@ impl OperationLimiter {
                 .await
                 .map_err(|_| {
                     BackpressureError::new_err(format!(
-                        "Operation queue timeout after {}ms: max_concurrent_operations={} exceeded",
-                        self.timeout_ms, self.max_concurrent
+                        "Operation '{}' queue timeout after {}ms: max_concurrent_operations={} exceeded",
+                        op_name, self.timeout_ms, self.max_concurrent
                     ))
                 })?
                 .map(Some)
@@ -127,5 +135,19 @@ mod tests {
         // Second acquire should timeout
         let result = limiter.acquire().await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_acquire_named_includes_op_in_error() {
+        let limiter = OperationLimiter::new(1, 50);
+        let _p = limiter.acquire_named("batch_read").await.unwrap();
+
+        let result = limiter.acquire_named("batch_read").await;
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("batch_read"),
+            "Error message should include the operation name, got: {err_msg}"
+        );
     }
 }

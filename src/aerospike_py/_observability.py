@@ -6,6 +6,7 @@ import logging
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from aerospike_py._aerospike import dropped_log_count as _dropped_log_count
 from aerospike_py._aerospike import get_metrics_text as _get_metrics_text
 from aerospike_py._aerospike import init_tracing as _init_tracing
 from aerospike_py._aerospike import is_metrics_enabled as _is_metrics_enabled
@@ -56,6 +57,19 @@ def get_metrics() -> str:
     return _get_metrics_text()
 
 
+def dropped_log_count() -> int:
+    """Return the number of log messages dropped because the GIL was unavailable.
+
+    When the Rust logging bridge cannot acquire the Python GIL (e.g. during
+    interpreter shutdown), log messages are counted as dropped. WARN and ERROR
+    level messages are still emitted to stderr as a fallback.
+
+    Returns:
+        Count of dropped messages since process start.
+    """
+    return _dropped_log_count()
+
+
 def set_metrics_enabled(enabled: bool) -> None:
     """Enable or disable Prometheus metrics collection.
 
@@ -90,6 +104,8 @@ _metrics_lock = threading.Lock()
 
 
 class _MetricsHandler(BaseHTTPRequestHandler):
+    """HTTP handler for Prometheus /metrics endpoint."""
+
     def do_GET(self):
         if self.path == "/metrics":
             body = _get_metrics_text().encode("utf-8")
@@ -103,7 +119,8 @@ class _MetricsHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, format, *args):
-        pass
+        # Forward HTTP request logs at DEBUG level instead of silently dropping them.
+        logger.debug(format, *args)
 
 
 def start_metrics_server(port: int = 9464) -> None:
