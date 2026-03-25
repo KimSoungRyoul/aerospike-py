@@ -114,9 +114,9 @@ async def numpy_batch_write(
         raise HTTPException(status_code=400, detail=f"Row data does not match dtype: {e}") from e
 
     results = await client.batch_write_numpy(data, body.namespace, body.set_name, dtype, key_field=body.key_field)
-    # batch_write_numpy returns list of (key, meta, bins) tuples;
-    # meta is not None when the write succeeded
-    codes = [0 if r[1] is not None else -1 for r in results]
+    # batch_write_numpy returns list of Record NamedTuples;
+    # meta is not None when the write succeeded (server returns gen/ttl)
+    codes = [0 if r.meta is not None else -1 for r in results]
     ok = sum(1 for c in codes if c == 0)
     return NumpyBatchWriteResponse(written=ok, failed=len(results) - ok, result_codes=codes)
 

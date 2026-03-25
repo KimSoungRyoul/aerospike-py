@@ -28,7 +28,7 @@ async def metrics_status():
 async def metrics_toggle(body: MetricsToggleRequest):
     """Enable or disable metrics collection at runtime."""
     aerospike_py.set_metrics_enabled(body.enabled)
-    return {"metrics_enabled": body.enabled}
+    return {"metrics_enabled": aerospike_py.is_metrics_enabled()}
 
 
 @router.post("/log-level")
