@@ -25,14 +25,14 @@ def test_metrics_endpoint(client):
 
 def test_metrics_after_operations(client, aerospike_client, cleanup):
     """Metrics reflect actual Aerospike operations."""
-    key = ("test", "users", "metrics_test_key")
-    cleanup.append(key)
-
     # Perform a put via the API
-    client.post(
+    resp = client.post(
         "/users",
         json={"name": "MetricsUser", "email": "m@test.com", "age": 25},
     )
+    assert resp.status_code == 201
+    user_id = resp.json()["user_id"]
+    cleanup.append(("test", "users", user_id))
 
     resp = client.get("/observability/metrics")
     assert resp.status_code == 200

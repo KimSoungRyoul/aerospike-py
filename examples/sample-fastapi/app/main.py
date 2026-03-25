@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
     }
     if settings.max_concurrent_ops > 0:
         config["max_concurrent_operations"] = settings.max_concurrent_ops
-        config["backpressure_timeout_ms"] = settings.backpressure_timeout_ms
+        config["operation_queue_timeout_ms"] = settings.backpressure_timeout_ms
 
     client = AsyncClient(config)
     await client.connect()
