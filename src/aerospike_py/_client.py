@@ -184,7 +184,7 @@ class Client(_NativeClient):
         return BatchRecordsTuple(batch_records=[_wrap_batch_record(br) for br in raw.batch_records])
 
     @catch_unexpected("Client.batch_write_numpy")
-    def batch_write_numpy(self, data, namespace, set_name, _dtype, key_field="_key", policy=None):
+    def batch_write_numpy(self, data, namespace, set_name, _dtype, key_field="_key", policy=None, retry=0):
         """Write multiple records from a numpy structured array.
 
         Each row of the structured array becomes a separate write operation.
@@ -198,6 +198,10 @@ class Client(_NativeClient):
             _dtype: numpy dtype describing the array layout.
             key_field: Name of the dtype field to use as the user key (default ``"_key"``).
             policy: Optional batch policy dict.
+            retry: Maximum number of retries for failed records (default ``0``).
+                When > 0, records that fail with transient errors (timeout,
+                device overload, key busy) are automatically retried with
+                exponential backoff.
 
         Returns:
             A list of ``Record`` NamedTuples with write results.
@@ -207,11 +211,15 @@ class Client(_NativeClient):
             import numpy as np
             dtype = np.dtype([("_key", "i4"), ("score", "f8"), ("count", "i4")])
             data = np.array([(1, 0.95, 10), (2, 0.87, 20)], dtype=dtype)
+            # Without retry
             results = client.batch_write_numpy(data, "test", "demo", dtype)
+            # With retry (up to 10 attempts for transient failures)
+            results = client.batch_write_numpy(data, "test", "demo", dtype, retry=10)
             ```
         """
         return [
-            _wrap_record(r) for r in super().batch_write_numpy(data, namespace, set_name, _dtype, key_field, policy)
+            _wrap_record(r)
+            for r in super().batch_write_numpy(data, namespace, set_name, _dtype, key_field, policy, retry)
         ]
 
     @catch_unexpected("Client.batch_operate")

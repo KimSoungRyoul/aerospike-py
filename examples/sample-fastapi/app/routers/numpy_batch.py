@@ -13,6 +13,8 @@ from app.dependencies import get_client
 from app.models import (
     NumpyBatchReadRequest,
     NumpyBatchReadResponse,
+    NumpyBatchWriteRequest,
+    NumpyBatchWriteResponse,
     VectorSearchRequest,
     VectorSearchResponse,
     VectorSearchResult,
@@ -81,6 +83,52 @@ async def numpy_batch_read(
         result_codes=result.result_codes.tolist(),
         keys=pk_list,
         count=len(result.batch_records),
+    )
+
+
+@router.post("/write", response_model=NumpyBatchWriteResponse)
+async def numpy_batch_write(
+    body: NumpyBatchWriteRequest,
+    client: AsyncClient = Depends(get_client),
+):
+    """Write multiple records from structured data with optional retry.
+
+    Converts the request data into a numpy structured array and writes
+    to Aerospike. Supports automatic retry for transient failures
+    (timeout, device overload, key busy).
+    """
+    try:
+        dtype = _build_dtype(body.dtype)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid dtype: {e}") from e
+
+    try:
+        data = np.array([tuple(row) for row in body.data], dtype=dtype)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid data for dtype: {e}") from e
+
+    if len(data) == 0:
+        return NumpyBatchWriteResponse(count=0, failed_count=0, result_codes=[])
+
+    # Use the first key to determine namespace/set
+    namespace = body.keys[0].namespace
+    set_name = body.keys[0].set_name
+
+    results = await client.batch_write_numpy(data, namespace, set_name, dtype, retry=body.retry)
+
+    result_codes = []
+    failed_count = 0
+    for r in results:
+        code = 0
+        if r.meta is None and r.bins is None:
+            code = -1
+            failed_count += 1
+        result_codes.append(code)
+
+    return NumpyBatchWriteResponse(
+        count=len(results),
+        failed_count=failed_count,
+        result_codes=result_codes,
     )
 
 

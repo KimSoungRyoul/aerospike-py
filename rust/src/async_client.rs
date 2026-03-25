@@ -676,7 +676,7 @@ impl PyAsyncClient {
 
     /// Write multiple records from a numpy structured array (async).
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (data, namespace, set_name, _dtype, key_field="_key", policy=None))]
+    #[pyo3(signature = (data, namespace, set_name, _dtype, key_field="_key", policy=None, retry=0))]
     fn batch_write_numpy<'py>(
         &self,
         py: Python<'py>,
@@ -686,10 +686,11 @@ impl PyAsyncClient {
         _dtype: &Bound<'_, PyAny>,
         key_field: &str,
         policy: Option<&Bound<'_, PyDict>>,
+        retry: u32,
     ) -> PyResult<Bound<'py, PyAny>> {
         debug!(
-            "async batch_write_numpy: namespace={}, set={}",
-            namespace, set_name
+            "async batch_write_numpy: namespace={}, set={}, retry={}",
+            namespace, set_name, retry
         );
         let client = self.get_client()?;
         let limiter = self.limiter.clone();
@@ -715,6 +716,7 @@ impl PyAsyncClient {
                 &set,
                 parent_ctx,
                 conn_info,
+                retry,
             )
             .await?;
             Python::attach(|py| batch_records_to_py(py, &results))

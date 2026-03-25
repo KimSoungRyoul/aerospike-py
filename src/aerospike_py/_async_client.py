@@ -177,7 +177,7 @@ class AsyncClient:
 
     @catch_unexpected("AsyncClient.batch_write_numpy")
     async def batch_write_numpy(
-        self, data, namespace: str, set_name: str, _dtype, key_field: str = "_key", policy=None
+        self, data, namespace: str, set_name: str, _dtype, key_field: str = "_key", policy=None, retry: int = 0
     ) -> list[Record]:
         """Write multiple records from a numpy structured array (async).
 
@@ -192,6 +192,10 @@ class AsyncClient:
             _dtype: numpy dtype describing the array layout.
             key_field: Name of the dtype field to use as the user key (default ``"_key"``).
             policy: Optional batch policy dict.
+            retry: Maximum number of retries for failed records (default ``0``).
+                When > 0, records that fail with transient errors (timeout,
+                device overload, key busy) are automatically retried with
+                exponential backoff.
 
         Returns:
             A list of ``Record`` NamedTuples with write results.
@@ -201,12 +205,15 @@ class AsyncClient:
             import numpy as np
             dtype = np.dtype([("_key", "i4"), ("score", "f8"), ("count", "i4")])
             data = np.array([(1, 0.95, 10), (2, 0.87, 20)], dtype=dtype)
+            # Without retry
             results = await client.batch_write_numpy(data, "test", "demo", dtype)
+            # With retry (up to 10 attempts for transient failures)
+            results = await client.batch_write_numpy(data, "test", "demo", dtype, retry=10)
             ```
         """
         return [
             _wrap_record(r)
-            for r in await self._inner.batch_write_numpy(data, namespace, set_name, _dtype, key_field, policy)
+            for r in await self._inner.batch_write_numpy(data, namespace, set_name, _dtype, key_field, policy, retry)
         ]
 
     @catch_unexpected("AsyncClient.batch_operate")
