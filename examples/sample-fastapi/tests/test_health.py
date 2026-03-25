@@ -14,7 +14,7 @@ def test_health(client):
 def test_health_degraded_when_disconnected(client):
     """Health endpoint returns 503 when Aerospike client is not connected."""
     with patch.object(
-        type(client.app.state.aerospike),
+        client.app.state.aerospike,
         "is_connected",
         return_value=False,
     ):
