@@ -333,7 +333,8 @@ class VectorSearchResponse(BaseModel):
 
 
 class NumpyBatchWriteRequest(BaseModel):
-    keys: list[AerospikeKey] = Field(..., min_length=1)
+    namespace: str = Field("test", description="Aerospike namespace")
+    set_name: str = Field("demo", description="Aerospike set name")
     dtype: list[DtypeField] = Field(
         ...,
         description="Structured array dtype specification (must include _key field)",
@@ -347,6 +348,7 @@ class NumpyBatchWriteRequest(BaseModel):
     )
     data: list[list[Any]] = Field(
         ...,
+        min_length=1,
         description="Row-oriented data: each inner list is one record matching the dtype order",
         examples=[[[1, 0.95, 10], [2, 0.87, 20]]],
     )

@@ -362,9 +362,11 @@ class Client(_NativeClient):
 
     # -- Utility --
 
+    @catch_unexpected("Client.is_connected")
     def is_connected(self) -> bool:
         return super().is_connected()
 
+    @catch_unexpected("Client.get_node_names")
     def get_node_names(self) -> list[str]:
         return super().get_node_names()
 

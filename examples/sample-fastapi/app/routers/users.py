@@ -65,13 +65,16 @@ async def update_user(user_id: str, body: UserUpdate, client: AsyncClient = Depe
     if not update_bins:
         raise HTTPException(status_code=422, detail="No fields to update")
 
-    # Use UPDATE_ONLY policy to atomically fail if the record was deleted
-    # between our check and write (prevents TOCTOU race).
+    # Use UPDATE_ONLY policy to atomically fail if the record doesn't exist
+    # (prevents TOCTOU race — no separate existence check needed).
     try:
         await client.put(key, update_bins, policy={"exists": aerospike_py.POLICY_EXISTS_UPDATE_ONLY})
     except RecordNotFound:
         raise HTTPException(status_code=404, detail="User not found") from None
 
+    # Re-read to return the updated record. If the record is deleted between
+    # put and get by another request, the global exception handler maps
+    # RecordNotFound → 404, which is acceptable.
     record = await client.get(key)
     return _to_response(user_id, record.meta, record.bins)
 

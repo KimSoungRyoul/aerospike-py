@@ -58,16 +58,7 @@ impl OperationLimiter {
     /// Returns `Some(permit)` when a slot is available.
     /// Raises `BackpressureError` if the timeout expires while waiting.
     ///
-    /// Prefer [`acquire_named`] for better error diagnostics.
-    #[allow(dead_code)]
-    pub async fn acquire(&self) -> PyResult<OperationPermit> {
-        self.acquire_named("unknown").await
-    }
-
-    /// Acquire a permit with an operation name for better error diagnostics.
-    ///
-    /// Same as [`acquire`] but includes the operation name in error messages,
-    /// making it easier to diagnose which operation hit the backpressure limit.
+    /// The `operation` name is included in error messages for diagnostics.
     pub async fn acquire_named(&self, operation: &str) -> PyResult<OperationPermit> {
         let sem = match &self.semaphore {
             None => return Ok(None),
@@ -111,16 +102,16 @@ mod tests {
     #[tokio::test]
     async fn test_disabled_limiter_returns_none() {
         let limiter = OperationLimiter::new(0, 0);
-        let permit = limiter.acquire().await.unwrap();
+        let permit = limiter.acquire_named("test").await.unwrap();
         assert!(permit.is_none());
     }
 
     #[tokio::test]
     async fn test_enabled_limiter_returns_permit() {
         let limiter = OperationLimiter::new(2, 0);
-        let p1 = limiter.acquire().await.unwrap();
+        let p1 = limiter.acquire_named("test").await.unwrap();
         assert!(p1.is_some());
-        let p2 = limiter.acquire().await.unwrap();
+        let p2 = limiter.acquire_named("test").await.unwrap();
         assert!(p2.is_some());
     }
 
@@ -128,21 +119,21 @@ mod tests {
     async fn test_permit_released_on_drop() {
         let limiter = OperationLimiter::new(1, 1000);
         {
-            let _p = limiter.acquire().await.unwrap();
+            let _p = limiter.acquire_named("test").await.unwrap();
             // permit held
         }
         // permit dropped — should be able to acquire again
-        let p2 = limiter.acquire().await.unwrap();
+        let p2 = limiter.acquire_named("test").await.unwrap();
         assert!(p2.is_some());
     }
 
     #[tokio::test]
     async fn test_timeout_when_exhausted() {
         let limiter = OperationLimiter::new(1, 50); // 50ms timeout
-        let _p = limiter.acquire().await.unwrap(); // hold the only permit
+        let _p = limiter.acquire_named("test").await.unwrap(); // hold the only permit
 
         // Second acquire should timeout
-        let result = limiter.acquire().await;
+        let result = limiter.acquire_named("test").await;
         assert!(result.is_err());
     }
 

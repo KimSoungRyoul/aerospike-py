@@ -137,7 +137,7 @@ def test_batch_read_with_missing_keys(client, aerospike_client, cleanup):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["count"] == 15
+    assert data["count"] == 10  # only successful records counted
 
     # First 10 should succeed, remaining 5 should fail
     for i in range(10):

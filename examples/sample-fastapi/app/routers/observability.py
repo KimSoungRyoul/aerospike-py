@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import PlainTextResponse
 
 import aerospike_py
-from aerospike_py import AsyncClient
-from app.dependencies import get_client
 from app.models import LogLevelRequest, MetricsToggleRequest
 
 router = APIRouter(prefix="/observability", tags=["observability"])
@@ -46,12 +44,3 @@ async def tracing_status(request: Request):
     """Return the current tracing initialization status."""
     enabled = getattr(request.app.state, "tracing_enabled", False)
     return {"tracing_enabled": enabled}
-
-
-@router.get("/ready")
-async def readiness(client: AsyncClient = Depends(get_client)):
-    """Readiness probe — checks if the Aerospike client is connected."""
-    connected = client.is_connected()
-    if not connected:
-        return JSONResponse(status_code=503, content={"ready": False, "reason": "Aerospike client not connected"})
-    return {"ready": True}

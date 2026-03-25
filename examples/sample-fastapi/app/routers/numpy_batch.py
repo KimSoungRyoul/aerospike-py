@@ -116,11 +116,7 @@ async def numpy_batch_write(
     if len(data) == 0:
         return NumpyBatchWriteResponse(count=0, failed_count=0, result_codes=[])
 
-    # Use the first key to determine namespace/set
-    namespace = body.keys[0].namespace
-    set_name = body.keys[0].set_name
-
-    results = await client.batch_write_numpy(data, namespace, set_name, dtype, retry=body.retry)
+    results = await client.batch_write_numpy(data, body.namespace, body.set_name, dtype, retry=body.retry)
 
     result_codes = []
     failed_count = 0
