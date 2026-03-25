@@ -360,6 +360,10 @@ class NumpyBatchWriteRequest(BaseModel):
 class NumpyBatchWriteResponse(BaseModel):
     written: int = Field(description="Number of records successfully written")
     failed: int = Field(0, description="Number of records that failed to write")
+    result_codes: list[int] = Field(
+        default_factory=list,
+        description="Per-record result codes (0 = success, non-zero = error)",
+    )
 
 
 # ── Observability models ──────────────────────────────────────
@@ -372,3 +376,7 @@ class LogLevelRequest(BaseModel):
         le=4,
         description="Log level: -1=OFF, 0=ERROR, 1=WARN, 2=INFO, 3=DEBUG, 4=TRACE",
     )
+
+
+class MetricsToggleRequest(BaseModel):
+    enabled: bool = Field(..., description="Enable or disable metrics collection")

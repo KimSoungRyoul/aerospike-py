@@ -41,6 +41,35 @@ def test_metrics_after_operations(client, aerospike_client, cleanup):
     assert "db_client_operation_duration_seconds" in body
 
 
+# ── Metrics status / toggle tests ────────────────────────────
+
+
+def test_metrics_status(client):
+    """GET /observability/metrics-status returns current state."""
+    resp = client.get("/observability/metrics-status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "metrics_enabled" in data
+    assert isinstance(data["metrics_enabled"], bool)
+
+
+def test_metrics_toggle(client):
+    """POST /observability/metrics-toggle enables/disables collection."""
+    # Disable
+    resp = client.post("/observability/metrics-toggle", json={"enabled": False})
+    assert resp.status_code == 200
+    assert resp.json()["metrics_enabled"] is False
+
+    # Verify status
+    resp = client.get("/observability/metrics-status")
+    assert resp.json()["metrics_enabled"] is False
+
+    # Re-enable
+    resp = client.post("/observability/metrics-toggle", json={"enabled": True})
+    assert resp.status_code == 200
+    assert resp.json()["metrics_enabled"] is True
+
+
 # ── Log level tests ───────────────────────────────────────────
 
 

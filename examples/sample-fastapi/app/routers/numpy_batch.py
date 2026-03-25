@@ -114,8 +114,11 @@ async def numpy_batch_write(
         raise HTTPException(status_code=400, detail=f"Row data does not match dtype: {e}") from e
 
     results = await client.batch_write_numpy(data, body.namespace, body.set_name, dtype, key_field=body.key_field)
-    ok = sum(1 for r in results if r.meta is not None)
-    return NumpyBatchWriteResponse(written=ok, failed=len(results) - ok)
+    # batch_write_numpy returns list of (key, meta, bins) tuples;
+    # meta is not None when the write succeeded
+    codes = [0 if r[1] is not None else -1 for r in results]
+    ok = sum(1 for c in codes if c == 0)
+    return NumpyBatchWriteResponse(written=ok, failed=len(results) - ok, result_codes=codes)
 
 
 @router.post("/vector-search", response_model=VectorSearchResponse)
@@ -148,12 +151,16 @@ async def vector_search(
     if total_found == 0:
         return VectorSearchResponse(results=[], total_found=0)
 
-    # bytes → float32 vectors
+    # bytes → float32 vectors (skip records with wrong blob size)
     raw_blobs = result.batch_records[body.embedding_bin]
     all_vectors = np.zeros((len(raw_blobs), dim), dtype=np.float32)
+    valid_mask = ok_mask.copy()
     for i in range(len(raw_blobs)):
-        if ok_mask[i] and len(raw_blobs[i]) == blob_size:
-            all_vectors[i] = np.frombuffer(raw_blobs[i], dtype=np.float32)
+        if ok_mask[i]:
+            if len(raw_blobs[i]) == blob_size:
+                all_vectors[i] = np.frombuffer(raw_blobs[i], dtype=np.float32)
+            else:
+                valid_mask[i] = False
 
     query = np.array(body.query_vector, dtype=np.float32)
     if len(query) != dim:
@@ -170,17 +177,18 @@ async def vector_search(
     # 0-norm 방지
     safe_norms = np.where(vec_norms > 0, vec_norms, 1.0)
     similarities = (all_vectors @ query) / (safe_norms * query_norm)
-    similarities = np.where(ok_mask, similarities, -2.0)  # 실패 레코드 제외
+    similarities = np.where(valid_mask, similarities, -2.0)  # 실패/잘못된 blob 레코드 제외
 
     # top-k
-    top_k = min(body.top_k, total_found)
+    valid_found = int(valid_mask.sum())
+    top_k = min(body.top_k, valid_found)
     top_indices = np.argsort(similarities)[::-1][:top_k]
 
     results = []
     pk_list = [k.key for k in body.keys]
     for idx in top_indices:
         idx = int(idx)
-        if not ok_mask[idx]:
+        if not valid_mask[idx]:
             continue
         extra = {}
         if body.extra_bins:

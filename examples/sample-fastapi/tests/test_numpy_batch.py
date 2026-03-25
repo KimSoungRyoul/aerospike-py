@@ -215,6 +215,8 @@ def test_batch_write_and_read_back(client, aerospike_client, cleanup):
     data = resp.json()
     assert data["written"] == 10
     assert data["failed"] == 0
+    assert len(data["result_codes"]) == 10
+    assert all(c == 0 for c in data["result_codes"])
 
     # cleanup 등록 (integer key)
     for i in range(10):
