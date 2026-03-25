@@ -53,8 +53,20 @@ def register_exception_handlers(app: FastAPI) -> None:
         detail = str(exc)
 
         if status >= 500:
-            logger.error("Aerospike error (HTTP %d): %s", status, detail)
+            logger.error(
+                "Aerospike error (HTTP %d) %s %s: %s",
+                status,
+                request.method,
+                request.url.path,
+                detail,
+            )
         else:
-            logger.debug("Aerospike error (HTTP %d): %s", status, detail)
+            logger.debug(
+                "Aerospike error (HTTP %d) %s %s: %s",
+                status,
+                request.method,
+                request.url.path,
+                detail,
+            )
 
         return JSONResponse(status_code=status, content={"detail": detail})

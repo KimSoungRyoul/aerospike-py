@@ -232,12 +232,16 @@ def test_batch_write_and_read_back(client, aerospike_client, cleanup):
     )
 
     assert resp2.status_code == 200
-    assert data["written"] == 10
-    assert data["failed"] == 0
-
-    # 읽기 결과 검증
     data2 = resp2.json()
     assert data2["count"] == 10
+
+    # 읽기 결과의 실제 값 검증
+    temps = data2["columns"]["temperature"]
+    humids = data2["columns"]["humidity"]
+    for i in range(10):
+        assert data2["result_codes"][i] == 0
+        assert abs(temps[i] - (20.0 + i * 0.5)) < 0.01
+        assert humids[i] == 50 + i
 
 
 def test_batch_write_invalid_rows_rejected(client):
