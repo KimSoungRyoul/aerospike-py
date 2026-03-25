@@ -107,14 +107,24 @@ class _MetricsHandler(BaseHTTPRequestHandler):
 
 
 def start_metrics_server(port: int = 9464) -> None:
-    """Start a background HTTP server serving /metrics for Prometheus scraping."""
+    """Start a background HTTP server serving /metrics for Prometheus scraping.
+
+    If a metrics server is already running on a different port, it is shut down
+    before the new one starts. If the new port fails to bind, the old server is
+    preserved and the OSError propagates.
+    """
     global _metrics_server, _metrics_server_thread
 
     with _metrics_lock:
+        # Bind the new socket first — if this raises (e.g. port in use),
+        # the old server is preserved unchanged.
         new_server = HTTPServer(("", port), _MetricsHandler)
 
+        # New server bound successfully — shut down old one if present.
         if _metrics_server is not None:
             _metrics_server.shutdown()
+            if _metrics_server_thread is not None:
+                _metrics_server_thread.join(timeout=5)
 
         _metrics_server = new_server
         _metrics_server_thread = threading.Thread(target=_metrics_server.serve_forever, daemon=True)

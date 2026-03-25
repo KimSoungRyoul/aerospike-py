@@ -39,18 +39,18 @@ async def create_user(body: UserCreate, client: AsyncClient = Depends(get_client
     bins = {"user_id": user_id, **body.model_dump()}
     await client.put(key, bins)
 
-    _, meta, bins = await client.get(key)
-    return _to_response(user_id, meta, bins)
+    record = await client.get(key)
+    return _to_response(user_id, record.meta, record.bins)
 
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: str, client: AsyncClient = Depends(get_client)):
     """Get a user by ID."""
     try:
-        _, meta, bins = await client.get(_key(user_id))
+        record = await client.get(_key(user_id))
     except RecordNotFound:
         raise HTTPException(status_code=404, detail="User not found") from None
-    return _to_response(user_id, meta, bins)
+    return _to_response(user_id, record.meta, record.bins)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -70,8 +70,8 @@ async def update_user(user_id: str, body: UserUpdate, client: AsyncClient = Depe
 
     await client.put(key, update_bins)
 
-    _, meta, bins = await client.get(key)
-    return _to_response(user_id, meta, bins)
+    record = await client.get(key)
+    return _to_response(user_id, record.meta, record.bins)
 
 
 @router.delete("/{user_id}", response_model=MessageResponse)
@@ -89,13 +89,13 @@ async def list_users(client: AsyncClient = Depends(get_client)):
     """List all users by scanning the set via query().results()."""
     records = await client.query(NS, SET).results()
     result = []
-    for key, meta, bins in records:
-        if bins is None:
+    for record in records:
+        if record.bins is None:
             continue
         # query()는 aerospike-core 알파 제한으로 user_key=None을 반환하므로
         # 생성 시 bins에 저장한 user_id를 우선 사용한다.
-        user_id = bins.get("user_id") or (key[2] if key else None)
-        if user_id is None or not isinstance(bins.get("name"), str):
+        user_id = record.bins.get("user_id") or (record.key.user_key if record.key else None)
+        if user_id is None or not isinstance(record.bins.get("name"), str):
             continue
-        result.append(_to_response(str(user_id), meta, bins))
+        result.append(_to_response(str(user_id), record.meta, record.bins))
     return result
