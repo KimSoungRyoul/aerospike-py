@@ -15,9 +15,7 @@ Covers scenarios that prior bugs would have silently corrupted:
 """
 
 import numpy as np
-import pytest
 
-import aerospike_py
 from aerospike_py.numpy_batch import NumpyBatchRecords
 
 NS = "test"
