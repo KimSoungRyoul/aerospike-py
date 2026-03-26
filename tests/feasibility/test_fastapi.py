@@ -178,7 +178,7 @@ def _create_app() -> FastAPI:
         keys = [_key(k["ns"], k["set"], k["key"]) for k in body["keys"]]
         results = await app.state.client.batch_operate(keys, body["ops"])
         sanitized = []
-        for br in results:
+        for br in results.batch_records:
             if br.record is not None:
                 sanitized.append(
                     {
@@ -201,7 +201,7 @@ def _create_app() -> FastAPI:
     async def batch_remove(body: dict):
         keys = [_key(k["ns"], k["set"], k["key"]) for k in body["keys"]]
         results = await app.state.client.batch_remove(keys)
-        return {"removed": len(results)}
+        return {"removed": len(results.batch_records)}
 
     # -- Index --------------------------------------------------------------
 

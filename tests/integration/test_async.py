@@ -40,8 +40,8 @@ class TestAsyncBatchWrite:
             {"op": aerospike_py.OPERATOR_WRITE, "bin": "score", "val": 200},
         ]
         results = await async_client.batch_operate(keys, ops)
-        assert len(results) == 3
-        for br in results:
+        assert len(results.batch_records) == 3
+        for br in results.batch_records:
             assert br.result == 0
 
         # Verify records were written
@@ -65,16 +65,16 @@ class TestAsyncBatchWrite:
             {"op": aerospike_py.OPERATOR_INCR, "bin": "counter", "val": 5},
         ]
         results = await async_client.batch_operate(keys, ops)
-        assert len(results) == 2
+        assert len(results.batch_records) == 2
 
         # First record succeeds
-        br0 = results[0]
+        br0 = results.batch_records[0]
         assert br0.result == 0
         assert br0.record is not None
         assert br0.record.meta is not None
 
         # Second record fails (type mismatch)
-        br1 = results[1]
+        br1 = results.batch_records[1]
         assert br1.result != 0
         assert br1.record is None
 
@@ -90,8 +90,8 @@ class TestAsyncBatchWrite:
             {"op": aerospike_py.OPERATOR_READ, "bin": "val", "val": None},
         ]
         results = await async_client.batch_operate(keys, ops)
-        assert len(results) == 2
-        for br in results:
+        assert len(results.batch_records) == 2
+        for br in results.batch_records:
             assert br.result == 0
             assert br.record is not None
             val = br.record.bins["val"]

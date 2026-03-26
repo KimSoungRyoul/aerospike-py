@@ -591,7 +591,7 @@ class Client:
         key_field: str = "_key",
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> list[BatchRecord]:
+    ) -> BatchRecords:
         """Write multiple records from a numpy structured array.
 
         Each row of the structured array becomes a separate write operation.
@@ -620,7 +620,7 @@ class Client:
             dtype = np.dtype([("_key", "i4"), ("score", "f8"), ("count", "i4")])
             data = np.array([(1, 0.95, 10), (2, 0.87, 20)], dtype=dtype)
             results = client.batch_write_numpy(data, "test", "demo", dtype, retry=10)
-            for br in results:
+            for br in results.batch_records:
                 if br.result != 0:
                     print(f"Failed: {br.key}, code={br.result}")
             ```
@@ -632,7 +632,7 @@ class Client:
         keys: list[Key],
         ops: list[dict[str, Any]],
         policy: Optional[dict[str, Any]] = None,
-    ) -> list[BatchRecord]:
+    ) -> BatchRecords:
         """Execute operations on multiple records in a single batch call.
 
         Args:
@@ -650,7 +650,7 @@ class Client:
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
             ops = [{"op": aerospike_py.OPERATOR_INCR, "bin": "views", "val": 1}]
             results = client.batch_operate(keys, ops)
-            for br in results:
+            for br in results.batch_records:
                 if br.result == 0 and br.record is not None:
                     print(br.record.bins)
             ```
@@ -661,7 +661,7 @@ class Client:
         self,
         keys: list[Key],
         policy: Optional[dict[str, Any]] = None,
-    ) -> list[BatchRecord]:
+    ) -> BatchRecords:
         """Delete multiple records in a single batch call.
 
         Args:
@@ -675,7 +675,7 @@ class Client:
             ```python
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
             results = client.batch_remove(keys)
-            failed = [br for br in results if br.result != 0]
+            failed = [br for br in results.batch_records if br.result != 0]
             ```
         """
         ...
@@ -1500,7 +1500,7 @@ class AsyncClient:
         key_field: str = "_key",
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> list[BatchRecord]:
+    ) -> BatchRecords:
         """Write multiple records from a numpy structured array (async).
 
         Each row of the structured array becomes a separate write operation.
@@ -1529,7 +1529,7 @@ class AsyncClient:
             dtype = np.dtype([("_key", "i4"), ("score", "f8"), ("count", "i4")])
             data = np.array([(1, 0.95, 10), (2, 0.87, 20)], dtype=dtype)
             results = await client.batch_write_numpy(data, "test", "demo", dtype, retry=10)
-            for br in results:
+            for br in results.batch_records:
                 if br.result != 0:
                     print(f"Failed: {br.key}, code={br.result}")
             ```
@@ -1541,7 +1541,7 @@ class AsyncClient:
         keys: list[Key],
         ops: list[dict[str, Any]],
         policy: Optional[dict[str, Any]] = None,
-    ) -> list[BatchRecord]:
+    ) -> BatchRecords:
         """Execute operations on multiple records in a single batch call.
 
         Args:
@@ -1559,7 +1559,7 @@ class AsyncClient:
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
             ops = [{"op": aerospike_py.OPERATOR_INCR, "bin": "views", "val": 1}]
             results = await client.batch_operate(keys, ops)
-            for br in results:
+            for br in results.batch_records:
                 if br.result == 0 and br.record is not None:
                     print(br.record.bins)
             ```
@@ -1570,7 +1570,7 @@ class AsyncClient:
         self,
         keys: list[Key],
         policy: Optional[dict[str, Any]] = None,
-    ) -> list[BatchRecord]:
+    ) -> BatchRecords:
         """Delete multiple records in a single batch call.
 
         Args:
@@ -1584,7 +1584,7 @@ class AsyncClient:
             ```python
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
             results = await client.batch_remove(keys)
-            failed = [br for br in results if br.result != 0]
+            failed = [br for br in results.batch_records if br.result != 0]
             ```
         """
         ...

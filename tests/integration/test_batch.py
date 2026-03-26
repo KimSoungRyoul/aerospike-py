@@ -106,9 +106,9 @@ class TestBatchOperate:
             {"op": aerospike_py.OPERATOR_READ, "bin": "counter", "val": None},
         ]
         results = client.batch_operate(keys, ops)
-        assert len(results) == 2
-        br0 = results[0]
-        br1 = results[1]
+        assert len(results.batch_records) == 2
+        br0 = results.batch_records[0]
+        br1 = results.batch_records[1]
         assert br0.result == 0
         assert br1.result == 0
         # Batch operate returns multi-op results as list per bin
@@ -140,8 +140,8 @@ class TestBatchWrite:
             {"op": aerospike_py.OPERATOR_WRITE, "bin": "score", "val": 100},
         ]
         results = client.batch_operate(keys, ops)
-        assert len(results) == 3
-        for br in results:
+        assert len(results.batch_records) == 3
+        for br in results.batch_records:
             assert br.result == 0
 
         # Verify records were written
@@ -170,8 +170,8 @@ class TestBatchWrite:
             {"op": aerospike_py.OPERATOR_WRITE, "bin": "score", "val": 999},
         ]
         results = client.batch_operate(keys, ops)
-        assert len(results) == 2
-        for br in results:
+        assert len(results.batch_records) == 2
+        for br in results.batch_records:
             assert br.result == 0
 
         # Verify overwritten
@@ -203,16 +203,16 @@ class TestBatchWrite:
             {"op": aerospike_py.OPERATOR_INCR, "bin": "counter", "val": 5},
         ]
         results = client.batch_operate(keys, ops)
-        assert len(results) == 2
+        assert len(results.batch_records) == 2
 
         # First record should succeed
-        br0 = results[0]
+        br0 = results.batch_records[0]
         assert br0.result == 0
         assert br0.record is not None
         assert br0.record.meta is not None
 
         # Second record should fail (type mismatch)
-        br1 = results[1]
+        br1 = results.batch_records[1]
         assert br1.result != 0
         assert br1.record is None
 
@@ -230,8 +230,8 @@ class TestBatchWrite:
             {"op": aerospike_py.OPERATOR_READ, "bin": "val", "val": None},
         ]
         results = client.batch_operate(keys, ops)
-        assert len(results) == 2
-        for br in results:
+        assert len(results.batch_records) == 2
+        for br in results.batch_records:
             assert br.result == 0
             assert br.record is not None
             val = br.record.bins["val"]
@@ -252,8 +252,8 @@ class TestBatchWrite:
             {"op": aerospike_py.OPERATOR_WRITE, "bin": "idx", "val": 0},
         ]
         results = client.batch_operate(keys, ops)
-        assert len(results) == n
-        for br in results:
+        assert len(results.batch_records) == n
+        for br in results.batch_records:
             assert br.result == 0
 
         # Verify all written

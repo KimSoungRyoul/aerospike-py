@@ -35,8 +35,8 @@ class TestWriteReadRoundtrip:
             dtype=dtype,
         )
         results = client.batch_write_numpy(data, NS, SET, dtype)
-        assert len(results) == 3
-        for br in results:
+        assert len(results.batch_records) == 3
+        for br in results.batch_records:
             assert br.result == 0, f"write failed: key={br.key}, result={br.result}"
         keys = [(NS, SET, i) for i in [1, 2, 3]]
         for k in keys:
@@ -67,7 +67,7 @@ class TestWriteReadRoundtrip:
         keys = [(NS, SET, name) for name in names]
         for k in keys:
             cleanup.append(k)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
 
         # batch_read with unpadded keys must find the records
@@ -91,7 +91,7 @@ class TestWriteReadRoundtrip:
         keys = [(NS, SET, int(10000 + i)) for i in range(n)]
         for k in keys:
             cleanup.append(k)
-        failed = [br for br in results if br.result != 0]
+        failed = [br for br in results.batch_records if br.result != 0]
         assert len(failed) == 0, f"{len(failed)} writes failed out of {n}"
 
         read_dtype = np.dtype([("x", "f8"), ("y", "i4")])
@@ -113,7 +113,7 @@ class TestWriteReadRoundtrip:
 
         data2 = np.array([(9001, 999), (9002, 888)], dtype=dtype)
         results = client.batch_write_numpy(data2, NS, SET, dtype)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
 
         read_dtype = np.dtype([("val", "i4")])
@@ -137,7 +137,7 @@ class TestDtypeBoundaryValues:
         keys = [(NS, SET, 8001), (NS, SET, 8002), (NS, SET, 8003)]
         for k in keys:
             cleanup.append(k)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
 
         read_dtype = np.dtype([("val", "i8")])  # read as i8 to avoid truncation
@@ -154,7 +154,7 @@ class TestDtypeBoundaryValues:
         keys = [(NS, SET, 8010), (NS, SET, 8011)]
         for k in keys:
             cleanup.append(k)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
 
         read_dtype = np.dtype([("big", "i8")])
@@ -172,7 +172,7 @@ class TestDtypeBoundaryValues:
         keys = [(NS, SET, 8020), (NS, SET, 8021), (NS, SET, 8022)]
         for k in keys:
             cleanup.append(k)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
 
         read_dtype = np.dtype([("f", "f8")])
@@ -196,10 +196,12 @@ class TestBatchWriteResultCodes:
         for k in keys:
             cleanup.append(k)
 
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
             assert br.key is not None
             assert br.record is not None
+            assert br.record.meta is not None
+            assert br.record.meta.gen >= 1
 
     def test_result_code_has_key_info(self, client, cleanup):
         dtype = np.dtype([("_key", "i4"), ("v", "i4")])
@@ -207,7 +209,7 @@ class TestBatchWriteResultCodes:
         results = client.batch_write_numpy(data, NS, SET, dtype)
         cleanup.append((NS, SET, 7010))
 
-        br = results[0]
+        br = results.batch_records[0]
         assert br.key is not None
         assert br.key.namespace == NS
         assert br.key.set_name == SET
@@ -228,7 +230,7 @@ class TestMultipleBinTypes:
         data = np.array([(6001, 42, 0.99, blob)], dtype=dtype_w)
         results = client.batch_write_numpy(data, NS, SET, dtype_w)
         cleanup.append((NS, SET, 6001))
-        assert results[0].result == 0
+        assert results.batch_records[0].result == 0
 
         dtype_r = np.dtype([("count", "i4"), ("score", "f8"), ("embedding", f"S{dim * 4}")])
         read = client.batch_read([(NS, SET, 6001)], _dtype=dtype_r)
@@ -245,7 +247,7 @@ class TestMultipleBinTypes:
         data = np.array([row], dtype=dtype)
         results = client.batch_write_numpy(data, NS, SET, dtype)
         cleanup.append((NS, SET, 5001))
-        assert results[0].result == 0
+        assert results.batch_records[0].result == 0
 
         read_fields = [(f"b{i}", "f8") for i in range(10)]
         read_dtype = np.dtype(read_fields)
@@ -265,7 +267,7 @@ class TestCustomKeyField:
         keys = [(NS, SET, 4001), (NS, SET, 4002)]
         for k in keys:
             cleanup.append(k)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
 
         read_dtype = np.dtype([("val", "f8")])
@@ -295,7 +297,7 @@ class TestVectorWriteRead:
         keys = [(NS, SET, 3000 + i) for i in range(n)]
         for k in keys:
             cleanup.append(k)
-        failed = [br for br in results if br.result != 0]
+        failed = [br for br in results.batch_records if br.result != 0]
         assert len(failed) == 0
 
         dtype_r = np.dtype([("embedding", f"S{blob_size}"), ("label", "i4")])
@@ -341,7 +343,7 @@ class TestAsyncWriteReadRoundtrip:
         keys = [(NS, SET, 1001), (NS, SET, 1002), (NS, SET, 1003)]
         for k in keys:
             async_cleanup.append(k)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
 
         read_dtype = np.dtype([("val", "f8")])
@@ -359,7 +361,7 @@ class TestAsyncWriteReadRoundtrip:
         keys = [(NS, SET, int(20000 + i)) for i in range(n)]
         for k in keys:
             async_cleanup.append(k)
-        failed = [br for br in results if br.result != 0]
+        failed = [br for br in results.batch_records if br.result != 0]
         assert len(failed) == 0
 
         read_dtype = np.dtype([("x", "f8")])
@@ -377,8 +379,8 @@ class TestAsyncWriteReadRoundtrip:
         for k in [(NS, SET, 1101), (NS, SET, 1102)]:
             async_cleanup.append(k)
 
-        assert len(results) == 2
-        for br in results:
+        assert len(results.batch_records) == 2
+        for br in results.batch_records:
             assert br.result == 0
             assert br.key is not None
 
@@ -392,8 +394,8 @@ class TestSingleRecord:
         data = np.array([(99, 42)], dtype=dtype)
         results = client.batch_write_numpy(data, NS, SET, dtype)
         cleanup.append((NS, SET, 99))
-        assert len(results) == 1
-        assert results[0].result == 0
+        assert len(results.batch_records) == 1
+        assert results.batch_records[0].result == 0
 
         read_dtype = np.dtype([("val", "i8")])
         read = client.batch_read([(NS, SET, 99)], _dtype=read_dtype)
@@ -412,7 +414,7 @@ class TestIntegerKeyLookup:
         keys = [(NS, SET, 0), (NS, SET, 1), (NS, SET, 2)]
         for k in keys:
             cleanup.append(k)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
 
         read_dtype = np.dtype([("val", "i4")])

@@ -204,7 +204,7 @@ class Client(_NativeClient):
                 exponential backoff.
 
         Returns:
-            A list of ``BatchRecord`` NamedTuples with per-record result codes.
+            ``BatchRecords`` containing per-record result codes.
 
         Example:
             ```python
@@ -212,23 +212,23 @@ class Client(_NativeClient):
             dtype = np.dtype([("_key", "i4"), ("score", "f8"), ("count", "i4")])
             data = np.array([(1, 0.95, 10), (2, 0.87, 20)], dtype=dtype)
             results = client.batch_write_numpy(data, "test", "demo", dtype, retry=10)
-            for br in results:
+            for br in results.batch_records:
                 if br.result != 0:
                     print(f"Failed: {br.key}, code={br.result}")
             ```
         """
         raw = super().batch_write_numpy(data, namespace, set_name, _dtype, key_field, policy, retry)
-        return [_wrap_batch_record(br) for br in raw.batch_records]
+        return BatchRecordsTuple(batch_records=[_wrap_batch_record(br) for br in raw.batch_records])
 
     @catch_unexpected("Client.batch_operate")
-    def batch_operate(self, keys, ops, policy=None) -> list[BatchRecordTuple]:
+    def batch_operate(self, keys, ops, policy=None) -> BatchRecordsTuple:
         raw = super().batch_operate(keys, ops, policy)
-        return [_wrap_batch_record(br) for br in raw.batch_records]
+        return BatchRecordsTuple(batch_records=[_wrap_batch_record(br) for br in raw.batch_records])
 
     @catch_unexpected("Client.batch_remove")
-    def batch_remove(self, keys, policy=None) -> list[BatchRecordTuple]:
+    def batch_remove(self, keys, policy=None) -> BatchRecordsTuple:
         raw = super().batch_remove(keys, policy)
-        return [_wrap_batch_record(br) for br in raw.batch_records]
+        return BatchRecordsTuple(batch_records=[_wrap_batch_record(br) for br in raw.batch_records])
 
     @catch_unexpected("Client.put")
     def put(self, key, bins, meta=None, policy=None) -> None:

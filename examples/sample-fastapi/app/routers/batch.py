@@ -38,7 +38,7 @@ async def batch_operate(body: BatchOperateRequest, client: AsyncClient = Depends
     ops = [{"op": op.op, "bin": op.bin, "val": op.val} for op in body.ops]
     results = await client.batch_operate(keys, ops)
     records = []
-    for br in results:
+    for br in results.batch_records:
         rec = None
         if br.record is not None:
             rec = RecordResponse(key=br.record.key, meta=br.record.meta, bins=br.record.bins)

@@ -109,9 +109,8 @@ class TestBatchOperateDocExamples:
         ops = [list_operations.list_append("items", 4)]
         results = client.batch_operate(keys, ops)
 
-        # docs example: for br in results (list[BatchRecord])
-        assert isinstance(results, list)
-        for br in results:
+        # docs example: for br in results.batch_records (BatchRecords container)
+        for br in results.batch_records:
             assert br.result == 0
             assert br.key is not None
             assert br.record is not None
@@ -128,8 +127,8 @@ class TestBatchOperateDocExamples:
             {"op": aerospike_py.OPERATOR_READ, "bin": "counter", "val": None},
         ]
         results = client.batch_operate(keys, ops)
-        assert len(results) == 2
-        for br in results:
+        assert len(results.batch_records) == 2
+        for br in results.batch_records:
             assert br.result == 0
             assert br.record is not None
             assert br.record.meta is not None
@@ -153,8 +152,7 @@ class TestNumpyBatchWriteDocExamples:
         results = client.batch_write_numpy(data, "test", "demo", dtype)
 
         # docs example: br.record.meta.gen (not meta['gen'])
-        assert isinstance(results, list)
-        for br in results:
+        for br in results.batch_records:
             assert br.result == 0
             assert br.record is not None
             assert isinstance(br.record.meta.gen, int)  # verify dot access
@@ -186,8 +184,8 @@ class TestNumpyBatchWriteDocExamples:
         # Same as the docs example
         results = client.batch_write_numpy(data, "test", "demo", dtype)
 
-        assert len(results) == 3
-        for br in results:
+        assert len(results.batch_records) == 3
+        for br in results.batch_records:
             assert br.result == 0
             assert br.record is not None
             assert br.record.meta.gen >= 1
@@ -209,4 +207,4 @@ class TestNumpyBatchWriteDocExamples:
 
         # docs example: key_field="user_id"
         results = client.batch_write_numpy(data, "test", "demo", dtype, key_field="user_id")
-        assert len(results) == 2
+        assert len(results.batch_records) == 2
