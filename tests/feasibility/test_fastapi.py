@@ -178,15 +178,23 @@ def _create_app() -> FastAPI:
         keys = [_key(k["ns"], k["set"], k["key"]) for k in body["keys"]]
         results = await app.state.client.batch_operate(keys, body["ops"])
         sanitized = []
-        for rec in results:
-            k, meta, bins_data = rec
-            sanitized.append(
-                {
-                    "key": _sanitize_key(k),
-                    "meta": meta._asdict() if meta else None,
-                    "bins": bins_data,
-                }
-            )
+        for br in results:
+            if br.record is not None:
+                sanitized.append(
+                    {
+                        "key": _sanitize_key(br.record.key),
+                        "meta": br.record.meta._asdict() if br.record.meta else None,
+                        "bins": br.record.bins,
+                    }
+                )
+            else:
+                sanitized.append(
+                    {
+                        "key": _sanitize_key(br.key),
+                        "meta": None,
+                        "bins": None,
+                    }
+                )
         return {"batch_records": sanitized}
 
     @app.post("/batch/remove")

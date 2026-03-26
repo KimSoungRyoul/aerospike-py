@@ -107,11 +107,13 @@ class TestBatchOperate:
         ]
         results = client.batch_operate(keys, ops)
         assert len(results) == 2
-        _, _, bins0 = results[0]
-        _, _, bins1 = results[1]
+        br0 = results[0]
+        br1 = results[1]
+        assert br0.result == 0
+        assert br1.result == 0
         # Batch operate returns multi-op results as list per bin
-        counter0 = bins0["counter"]
-        counter1 = bins1["counter"]
+        counter0 = br0.record.bins["counter"]
+        counter1 = br1.record.bins["counter"]
         if isinstance(counter0, list):
             assert counter0[-1] == 15
             assert counter1[-1] == 25
@@ -139,6 +141,8 @@ class TestBatchWrite:
         ]
         results = client.batch_operate(keys, ops)
         assert len(results) == 3
+        for br in results:
+            assert br.result == 0
 
         # Verify records were written
         for k in keys:
@@ -167,6 +171,8 @@ class TestBatchWrite:
         ]
         results = client.batch_operate(keys, ops)
         assert len(results) == 2
+        for br in results:
+            assert br.result == 0
 
         # Verify overwritten
         for k in keys:
@@ -200,13 +206,15 @@ class TestBatchWrite:
         assert len(results) == 2
 
         # First record should succeed
-        _, meta0, bins0 = results[0]
-        assert meta0 is not None
+        br0 = results[0]
+        assert br0.result == 0
+        assert br0.record is not None
+        assert br0.record.meta is not None
 
-        # Second record should fail (None meta/bins due to type mismatch)
-        _, meta1, bins1 = results[1]
-        assert meta1 is None
-        assert bins1 is None
+        # Second record should fail (type mismatch)
+        br1 = results[1]
+        assert br1.result != 0
+        assert br1.record is None
 
     def test_batch_write_with_read_back(self, client, cleanup):
         """batch_operate with WRITE + READ returns written values."""
@@ -223,10 +231,10 @@ class TestBatchWrite:
         ]
         results = client.batch_operate(keys, ops)
         assert len(results) == 2
-        for rec in results:
-            _, meta, bins = rec
-            assert meta is not None
-            val = bins["val"]
+        for br in results:
+            assert br.result == 0
+            assert br.record is not None
+            val = br.record.bins["val"]
             # batch_operate may return list (multi-op) or scalar
             if isinstance(val, list):
                 assert val[-1] == 42
@@ -245,6 +253,8 @@ class TestBatchWrite:
         ]
         results = client.batch_operate(keys, ops)
         assert len(results) == n
+        for br in results:
+            assert br.result == 0
 
         # Verify all written
         read_result = client.batch_read(keys)
