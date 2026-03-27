@@ -147,6 +147,22 @@ class Client:
         """
         ...
 
+    def get_server_version(self) -> str:
+        """Return the Aerospike server build version string.
+
+        Convenience wrapper around ``info_random_node("build")``.
+
+        Returns:
+            The server version string (e.g. ``"8.1.0.3"``).
+
+        Example:
+            ```python
+            version = client.get_server_version()
+            print(version)  # "8.1.0.3"
+            ```
+        """
+        ...
+
     # -- Info --
 
     def info_all(
@@ -1070,6 +1086,22 @@ class AsyncClient:
         Example:
             ```python
             nodes = client.get_node_names()
+            ```
+        """
+        ...
+
+    async def get_server_version(self) -> str:
+        """Return the Aerospike server build version string.
+
+        Convenience wrapper around ``info_random_node("build")``.
+
+        Returns:
+            The server version string (e.g. ``"8.1.0.3"``).
+
+        Example:
+            ```python
+            version = await client.get_server_version()
+            print(version)  # "8.1.0.3"
             ```
         """
         ...

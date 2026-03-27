@@ -370,6 +370,27 @@ class Client(_NativeClient):
     def get_node_names(self) -> list[str]:
         return super().get_node_names()
 
+    @catch_unexpected("Client.get_server_version")
+    def get_server_version(self) -> str:
+        """Return the Aerospike server build version string.
+
+        Convenience wrapper around ``info_random_node("build")``.
+
+        Returns:
+            The server version string (e.g. ``"8.1.0.3"``).
+
+        Example:
+            ```python
+            version = client.get_server_version()
+            print(version)  # "8.1.0.3"
+            ```
+        """
+        response = self.info_random_node("build")
+        try:
+            return response.split("\t")[1].strip()
+        except IndexError:
+            return response.strip()
+
     # -- Query --
 
     def query(self, namespace, set_name) -> Query:

@@ -234,6 +234,27 @@ class AsyncClient:
     def get_node_names(self) -> list[str]:
         return self._inner.get_node_names()
 
+    @catch_unexpected("AsyncClient.get_server_version")
+    async def get_server_version(self) -> str:
+        """Return the Aerospike server build version string.
+
+        Convenience wrapper around ``info_random_node("build")``.
+
+        Returns:
+            The server version string (e.g. ``"8.1.0.3"``).
+
+        Example:
+            ```python
+            version = await client.get_server_version()
+            print(version)  # "8.1.0.3"
+            ```
+        """
+        response = await self.info_random_node("build")
+        try:
+            return response.split("\t")[1].strip()
+        except IndexError:
+            return response.strip()
+
     @catch_unexpected("AsyncClient.info_random_node")
     async def info_random_node(self, command, policy=None) -> str:
         return await self._inner.info_random_node(command, policy)
