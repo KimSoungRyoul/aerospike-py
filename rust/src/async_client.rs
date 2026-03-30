@@ -186,11 +186,14 @@ impl PyAsyncClient {
         self.limiter = Arc::new(OperationLimiter::new(0, 0));
 
         future_into_py(py, async move {
-            if let Some(c) = client {
-                c.close().await.map_err(as_to_pyerr)?;
-            }
+            let result = if let Some(c) = client {
+                c.close().await.map_err(as_to_pyerr)
+            } else {
+                Ok(())
+            };
+            // Always transition to Disconnected — inner is already None.
             state.store(DISCONNECTED, Ordering::SeqCst);
-            Ok(())
+            result
         })
     }
 
@@ -259,11 +262,14 @@ impl PyAsyncClient {
         self.limiter = Arc::new(OperationLimiter::new(0, 0));
 
         future_into_py(py, async move {
-            if let Some(c) = client {
-                c.close().await.map_err(as_to_pyerr)?;
-            }
+            let result = if let Some(c) = client {
+                c.close().await.map_err(as_to_pyerr)
+            } else {
+                Ok(())
+            };
+            // Always transition to Disconnected — inner is already None.
             state.store(DISCONNECTED, Ordering::SeqCst);
-            Ok(false)
+            result.map(|()| false)
         })
     }
 

@@ -168,15 +168,17 @@ impl PyClient {
         }
 
         self.state = CLOSING;
-        if let Some(client) = self.inner.take() {
-            py.detach(|| RUNTIME.block_on(async { client.close().await.map_err(as_to_pyerr) }))?;
-        }
+        let result = if let Some(client) = self.inner.take() {
+            py.detach(|| RUNTIME.block_on(async { client.close().await.map_err(as_to_pyerr) }))
+        } else {
+            Ok(())
+        };
 
-        // Reset connection metadata and limiter to default.
+        // Always reset — inner is already None so no operations can proceed.
         self.connection_info = Arc::new(crate::tracing::ConnectionInfo::default());
         self.limiter = Arc::new(OperationLimiter::new(0, 0));
         self.state = DISCONNECTED;
-        Ok(())
+        result
     }
 
     /// Get node names in the cluster
