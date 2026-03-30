@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 
 use crate::backpressure::OperationLimiter;
@@ -9,6 +10,12 @@ use log::{debug, info, trace, warn};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3_async_runtimes::tokio::future_into_py;
+
+// Lifecycle states for the client state machine.
+const DISCONNECTED: u8 = 0;
+const CONNECTING: u8 = 1;
+const CONNECTED: u8 = 2;
+const CLOSING: u8 = 3;
 
 use crate::batch_types::batch_to_batch_records_py;
 use crate::errors::as_to_pyerr;
@@ -41,6 +48,8 @@ pub struct PyAsyncClient {
     connection_info: Arc<crate::tracing::ConnectionInfo>,
     /// Operation concurrency limiter (disabled by default).
     limiter: Arc<OperationLimiter>,
+    /// Lifecycle state: Disconnected(0) → Connecting(1) → Connected(2) → Closing(3).
+    state: Arc<AtomicU8>,
 }
 
 #[pymethods]
@@ -52,6 +61,7 @@ impl PyAsyncClient {
             config,
             connection_info: Arc::new(crate::tracing::ConnectionInfo::default()),
             limiter: Arc::new(OperationLimiter::new(0, 0)),
+            state: Arc::new(AtomicU8::new(DISCONNECTED)),
         })
     }
 
@@ -63,7 +73,26 @@ impl PyAsyncClient {
         username: Option<&str>,
         password: Option<&str>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        // Guard: only allow Disconnected → Connecting transition.
+        if self
+            .state
+            .compare_exchange(DISCONNECTED, CONNECTING, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            let current = self.state.load(Ordering::SeqCst);
+            let state_name = match current {
+                CONNECTING => "connecting",
+                CONNECTED => "connected",
+                CLOSING => "closing",
+                _ => "unknown",
+            };
+            return Err(crate::errors::ClientError::new_err(format!(
+                "Cannot connect: client is already {state_name}. Close the client before reconnecting."
+            )));
+        }
+
         if username.is_some() && password.is_none() {
+            self.state.store(DISCONNECTED, Ordering::SeqCst);
             return Err(crate::errors::ClientError::new_err(
                 "Password is required when username is provided.",
             ));
@@ -81,6 +110,7 @@ impl PyAsyncClient {
         let client_policy = parse_client_policy(&effective_config)?;
         let (max_ops, timeout_ms) = parse_backpressure_config(&effective_config)?;
         let inner = self.inner.clone();
+        let state = self.state.clone();
 
         let cluster_name = client_common::extract_cluster_name(&effective_config)?;
 
@@ -95,22 +125,31 @@ impl PyAsyncClient {
         let hosts_str = parsed.connection_string;
         info!("Async connecting to Aerospike cluster: {}", hosts_str);
         future_into_py(py, async move {
-            let client = AsClient::new(
+            let result = AsClient::new(
                 &client_policy,
                 &hosts_str as &(dyn aerospike_core::ToHosts + Send + Sync),
             )
-            .await
-            .map_err(as_to_pyerr)?;
+            .await;
 
-            inner.store(Some(Arc::new(client)));
-            Ok(())
+            match result {
+                Ok(client) => {
+                    inner.store(Some(Arc::new(client)));
+                    state.store(CONNECTED, Ordering::SeqCst);
+                    Ok(())
+                }
+                Err(e) => {
+                    // Revert to Disconnected so retry is possible.
+                    state.store(DISCONNECTED, Ordering::SeqCst);
+                    Err(as_to_pyerr(e))
+                }
+            }
         })
     }
 
     /// Check if connected (sync, no I/O, lock-free).
     fn is_connected(&self) -> bool {
         trace!("Checking async client connection status");
-        self.inner.load().is_some()
+        self.state.load(Ordering::SeqCst) == CONNECTED && self.inner.load().is_some()
     }
 
     /// Lightweight health check: returns `True` if a random node responds.
@@ -125,13 +164,32 @@ impl PyAsyncClient {
     }
 
     /// Close connection (async).
-    fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn close<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         info!("Closing async client connection");
+        let current = self.state.load(Ordering::SeqCst);
+        if current == DISCONNECTED || current == CLOSING {
+            // Already disconnected or closing — idempotent no-op.
+            return future_into_py(py, async move { Ok(()) });
+        }
+        if current == CONNECTING {
+            return Err(crate::errors::ClientError::new_err(
+                "Cannot close: client is currently connecting.",
+            ));
+        }
+
+        self.state.store(CLOSING, Ordering::SeqCst);
         let client = self.inner.swap(None);
+        let state = self.state.clone();
+
+        // Reset connection metadata and limiter to default.
+        self.connection_info = Arc::new(crate::tracing::ConnectionInfo::default());
+        self.limiter = Arc::new(OperationLimiter::new(0, 0));
+
         future_into_py(py, async move {
             if let Some(c) = client {
                 c.close().await.map_err(as_to_pyerr)?;
             }
+            state.store(DISCONNECTED, Ordering::SeqCst);
             Ok(())
         })
     }
@@ -182,17 +240,29 @@ impl PyAsyncClient {
     /// Async context manager exit.
     #[pyo3(signature = (_exc_type=None, _exc_val=None, _exc_tb=None))]
     fn __aexit__<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         _exc_type: Option<&Bound<'_, PyAny>>,
         _exc_val: Option<&Bound<'_, PyAny>>,
         _exc_tb: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let current = self.state.load(Ordering::SeqCst);
+        if current != CONNECTED {
+            return future_into_py(py, async move { Ok(false) });
+        }
+        self.state.store(CLOSING, Ordering::SeqCst);
         let client = self.inner.swap(None);
+        let state = self.state.clone();
+
+        // Reset connection metadata and limiter to default.
+        self.connection_info = Arc::new(crate::tracing::ConnectionInfo::default());
+        self.limiter = Arc::new(OperationLimiter::new(0, 0));
+
         future_into_py(py, async move {
             if let Some(c) = client {
                 c.close().await.map_err(as_to_pyerr)?;
             }
+            state.store(DISCONNECTED, Ordering::SeqCst);
             Ok(false)
         })
     }

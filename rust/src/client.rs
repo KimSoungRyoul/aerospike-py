@@ -1,5 +1,11 @@
 use std::sync::Arc;
 
+// Lifecycle states for the client state machine.
+const DISCONNECTED: u8 = 0;
+const CONNECTING: u8 = 1;
+const CONNECTED: u8 = 2;
+const CLOSING: u8 = 3;
+
 use crate::client_common;
 use crate::client_ops;
 use aerospike_core::{Client as AsClient, Error as AsError, ResultCode};
@@ -35,6 +41,8 @@ pub struct PyClient {
     connection_info: Arc<crate::tracing::ConnectionInfo>,
     /// Operation concurrency limiter (disabled by default).
     limiter: Arc<OperationLimiter>,
+    /// Lifecycle state: Disconnected(0) → Connecting(1) → Connected(2) → Closing(3).
+    state: u8,
 }
 
 #[pymethods]
@@ -46,6 +54,7 @@ impl PyClient {
             config,
             connection_info: Arc::new(crate::tracing::ConnectionInfo::default()),
             limiter: Arc::new(OperationLimiter::new(0, 0)),
+            state: DISCONNECTED,
         })
     }
 
@@ -57,7 +66,22 @@ impl PyClient {
         username: Option<&str>,
         password: Option<&str>,
     ) -> PyResult<()> {
+        // Guard: only allow Disconnected → Connecting transition.
+        if self.state != DISCONNECTED {
+            let state_name = match self.state {
+                CONNECTING => "connecting",
+                CONNECTED => "connected",
+                CLOSING => "closing",
+                _ => "unknown",
+            };
+            return Err(crate::errors::ClientError::new_err(format!(
+                "Cannot connect: client is already {state_name}. Close the client before reconnecting."
+            )));
+        }
+        self.state = CONNECTING;
+
         if username.is_some() && password.is_none() {
+            self.state = DISCONNECTED;
             return Err(crate::errors::ClientError::new_err(
                 "Password is required when username is provided.",
             ));
@@ -85,7 +109,7 @@ impl PyClient {
 
         let hosts_str = parsed.connection_string;
         info!("Connecting to Aerospike cluster: {}", hosts_str);
-        let client = py.detach(|| {
+        let result = py.detach(|| {
             RUNTIME.block_on(async {
                 AsClient::new(
                     &client_policy,
@@ -94,21 +118,32 @@ impl PyClient {
                 .await
                 .map_err(as_to_pyerr)
             })
-        })?;
+        });
 
-        self.inner = Some(Arc::new(client));
-        self.limiter = Arc::new(OperationLimiter::new(max_ops, timeout_ms));
-        info!("Connected to Aerospike cluster");
-        Ok(())
+        match result {
+            Ok(client) => {
+                self.inner = Some(Arc::new(client));
+                self.limiter = Arc::new(OperationLimiter::new(max_ops, timeout_ms));
+                self.state = CONNECTED;
+                info!("Connected to Aerospike cluster");
+                Ok(())
+            }
+            Err(e) => {
+                // Revert to Disconnected so retry is possible.
+                self.state = DISCONNECTED;
+                Err(e)
+            }
+        }
     }
 
     /// Check if the client is connected
     fn is_connected(&self) -> bool {
         trace!("Checking client connection status");
-        match &self.inner {
-            Some(client) => client.is_connected(),
-            None => false,
-        }
+        self.state == CONNECTED
+            && match &self.inner {
+                Some(client) => client.is_connected(),
+                None => false,
+            }
     }
 
     /// Lightweight health check: returns `True` if a random node responds.
@@ -122,9 +157,25 @@ impl PyClient {
     /// Close the connection to the cluster
     fn close(&mut self, py: Python<'_>) -> PyResult<()> {
         info!("Closing client connection");
+        if self.state == DISCONNECTED || self.state == CLOSING {
+            // Already disconnected or closing — idempotent no-op.
+            return Ok(());
+        }
+        if self.state == CONNECTING {
+            return Err(crate::errors::ClientError::new_err(
+                "Cannot close: client is currently connecting.",
+            ));
+        }
+
+        self.state = CLOSING;
         if let Some(client) = self.inner.take() {
             py.detach(|| RUNTIME.block_on(async { client.close().await.map_err(as_to_pyerr) }))?;
         }
+
+        // Reset connection metadata and limiter to default.
+        self.connection_info = Arc::new(crate::tracing::ConnectionInfo::default());
+        self.limiter = Arc::new(OperationLimiter::new(0, 0));
+        self.state = DISCONNECTED;
         Ok(())
     }
 
