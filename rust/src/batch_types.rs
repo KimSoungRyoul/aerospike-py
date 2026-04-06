@@ -18,6 +18,8 @@ pub struct PyBatchRecord {
     result: i32,
     #[pyo3(get)]
     record: Py<PyAny>,
+    #[pyo3(get)]
+    in_doubt: bool,
 }
 
 /// Container holding a list of [`PyBatchRecord`]s, exposed to Python.
@@ -53,6 +55,7 @@ pub fn batch_to_batch_records_py(
             key: key_py,
             result: result_code,
             record: record_py,
+            in_doubt: br.in_doubt,
         };
 
         batch_records.push(Py::new(py, batch_record)?);

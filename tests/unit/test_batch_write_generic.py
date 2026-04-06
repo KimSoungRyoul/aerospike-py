@@ -3,6 +3,17 @@
 import inspect
 
 import aerospike_py
+from aerospike_py.types import BatchRecord
+
+
+class TestBatchRecordInDoubt:
+    """Verify BatchRecord has in_doubt field."""
+
+    def test_batch_record_has_in_doubt_field(self):
+        assert "in_doubt" in BatchRecord._fields
+
+    def test_batch_record_field_order(self):
+        assert BatchRecord._fields == ("key", "result", "record", "in_doubt")
 
 
 class TestBatchWriteSignature:

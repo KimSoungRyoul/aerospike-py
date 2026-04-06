@@ -58,7 +58,7 @@ def _wrap_operate_ordered(raw: tuple) -> OperateOrderedResult:
 def _wrap_batch_record(br) -> BatchRecordTuple:
     key = _wrap_key(br.key)
     record = _wrap_record(br.record) if br.record is not None else None
-    return BatchRecordTuple(key=key, result=br.result, record=record)
+    return BatchRecordTuple(key=key, result=br.result, record=record, in_doubt=br.in_doubt)
 
 
 # ---------------------------------------------------------------------------

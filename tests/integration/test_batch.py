@@ -281,6 +281,7 @@ class TestBatchWriteGeneric:
         assert len(results.batch_records) == 3
         for br in results.batch_records:
             assert br.result == 0
+            assert br.in_doubt is False
 
         # Verify each record
         _, _, bins = client.get(("test", "demo", "bw_gen_1"))
