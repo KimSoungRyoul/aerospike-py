@@ -68,3 +68,21 @@ class TestBatchWriteInputValidation:
         """Non-dict bins element raises TypeError."""
         with pytest.raises(TypeError, match="must be a dict"):
             client.batch_write([(("test", "demo", "k1"), [("a", 1)])])
+
+    def test_3_tuple_meta_accepted(self, client):
+        """3-element tuple (key, bins, meta) is accepted without error."""
+        key = ("test", "demo", "k_meta_accept")
+        result = client.batch_write([(key, {"a": 1}, {"ttl": 300})])
+        # Should not raise; record may or may not exist depending on server state
+        assert len(result.batch_records) == 1
+
+    def test_3_tuple_meta_must_be_dict(self, client):
+        """Non-dict meta element raises TypeError."""
+        with pytest.raises(TypeError, match="meta element must be a dict"):
+            client.batch_write([(("test", "demo", "k1"), {"a": 1}, "not_a_dict")])
+
+    def test_policy_ttl_accepted(self, client):
+        """policy dict with 'ttl' key is accepted without error."""
+        key = ("test", "demo", "k_policy_ttl")
+        result = client.batch_write([(key, {"a": 1})], policy={"ttl": 300})
+        assert len(result.batch_records) == 1

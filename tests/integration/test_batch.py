@@ -386,6 +386,76 @@ class TestBatchWriteGeneric:
         assert bins["val"] == 1
 
 
+class TestBatchWriteTTL:
+    """Test batch_write() TTL support via policy and per-record meta."""
+
+    def test_batch_write_policy_ttl(self, client, cleanup):
+        """Batch-level TTL via policy={"ttl": N} is applied to all records."""
+        keys = [
+            ("test", "demo", "bw_ttl_pol_1"),
+            ("test", "demo", "bw_ttl_pol_2"),
+        ]
+        for k in keys:
+            cleanup.append(k)
+
+        ttl_seconds = 2592000  # 30 days
+        records = [(k, {"val": i}) for i, k in enumerate(keys)]
+        results = client.batch_write(records, policy={"ttl": ttl_seconds})
+        for br in results.batch_records:
+            assert br.result == 0
+
+        # Verify TTL is set (not namespace default)
+        for k in keys:
+            _, meta, _ = client.get(k)
+            assert meta is not None
+            # TTL should be close to what we set (server may subtract a second)
+            assert meta.ttl > 0
+            assert meta.ttl <= ttl_seconds
+
+    def test_batch_write_per_record_meta_ttl(self, client, cleanup):
+        """Per-record TTL via (key, bins, {"ttl": N}) meta tuple."""
+        key = ("test", "demo", "bw_ttl_meta")
+        cleanup.append(key)
+
+        ttl_seconds = 3600  # 1 hour
+        results = client.batch_write([(key, {"val": 1}, {"ttl": ttl_seconds})])
+        assert results.batch_records[0].result == 0
+
+        _, meta, _ = client.get(key)
+        assert meta is not None
+        assert meta.ttl > 0
+        assert meta.ttl <= ttl_seconds
+
+    def test_batch_write_per_record_meta_overrides_policy_ttl(self, client, cleanup):
+        """Per-record meta TTL overrides batch-level policy TTL."""
+        key_policy = ("test", "demo", "bw_ttl_override_pol")
+        key_meta = ("test", "demo", "bw_ttl_override_meta")
+        cleanup.append(key_policy)
+        cleanup.append(key_meta)
+
+        policy_ttl = 86400  # 1 day
+        meta_ttl = 3600  # 1 hour
+
+        records = [
+            (key_policy, {"val": 1}),  # uses batch-level TTL
+            (key_meta, {"val": 2}, {"ttl": meta_ttl}),  # overrides with per-record TTL
+        ]
+        results = client.batch_write(records, policy={"ttl": policy_ttl})
+        for br in results.batch_records:
+            assert br.result == 0
+
+        # Record without meta should use batch-level TTL (~1 day)
+        _, meta_pol, _ = client.get(key_policy)
+        assert meta_pol is not None
+        assert meta_pol.ttl > 3600  # should be ~86400, definitely > 1 hour
+
+        # Record with meta should use per-record TTL (~1 hour)
+        _, meta_m, _ = client.get(key_meta)
+        assert meta_m is not None
+        assert meta_m.ttl <= meta_ttl
+        assert meta_m.ttl > 0
+
+
 class TestBatchRemove:
     def test_batch_remove(self, client):
         keys = [
