@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use crate::policy::batch_policy::parse_batch_write_policy;
+use crate::policy::batch_policy::{apply_record_meta, parse_batch_write_policy};
 use aerospike_core::{
     operations::Operation, BatchDeletePolicy, BatchOperation, BatchReadPolicy, BatchWritePolicy,
     Bin, Bins, Key, ReadPolicy, UDFLang, Value, WritePolicy,
@@ -634,6 +634,8 @@ pub fn prepare_batch_write_args(
     conn_info: &Arc<ConnectionInfo>,
 ) -> PyResult<BatchWriteGenericArgs> {
     let batch_policy = parse_batch_policy(policy)?;
+    // Parse batch-level write policy once (TTL default for all records)
+    let base_write_policy = parse_batch_write_policy(policy)?;
     let mut rust_records = Vec::with_capacity(records.len());
 
     for item in records.iter() {
@@ -652,24 +654,16 @@ pub fn prepare_batch_write_args(
             .map_err(|_| pyo3::exceptions::PyTypeError::new_err("bins element must be a dict"))?;
         let bins = py_dict_to_bins(bins_dict)?;
 
-        // Parse per-record meta from optional 3rd tuple element
-        let meta = if tuple.len() >= 3 {
+        // Per-record meta (3rd tuple element) overrides batch-level TTL
+        let write_policy = if tuple.len() >= 3 {
             let meta_obj = tuple.get_item(2)?;
-            Some(
-                meta_obj
-                    .cast::<PyDict>()
-                    .map_err(|_| {
-                        pyo3::exceptions::PyTypeError::new_err("meta element must be a dict")
-                    })?
-                    .clone(),
-            )
+            let meta_dict = meta_obj.cast::<PyDict>().map_err(|_| {
+                pyo3::exceptions::PyTypeError::new_err("meta element must be a dict")
+            })?;
+            apply_record_meta(&base_write_policy, meta_dict)?
         } else {
-            None
+            base_write_policy.clone()
         };
-
-        // Build per-record write policy: batch-level policy TTL as default,
-        // per-record meta TTL overrides
-        let write_policy = parse_batch_write_policy(policy, meta.as_ref())?;
 
         rust_records.push((key, bins, write_policy));
     }

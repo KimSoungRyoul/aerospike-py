@@ -32,32 +32,34 @@ pub fn parse_batch_policy(policy_dict: Option<&Bound<'_, PyDict>>) -> PyResult<B
     Ok(policy)
 }
 
-/// Parse a Python policy/meta dict into a [`BatchWritePolicy`] with TTL support.
+/// Parse the batch-level policy dict into a [`BatchWritePolicy`] with TTL.
 ///
-/// `policy_dict` provides the batch-level default TTL; `meta` (per-record)
-/// overrides it. Note: this is the **inverse** of
-/// [`parse_write_policy()`](super::write_policy::parse_write_policy), where
-/// `policy_dict` takes precedence over `meta`.
+/// Call once before iterating records. Use
+/// [`apply_record_meta`] to override per-record TTL on a clone of the result.
 pub fn parse_batch_write_policy(
     policy_dict: Option<&Bound<'_, PyDict>>,
-    meta: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<BatchWritePolicy> {
     trace!("Parsing batch write policy");
     let mut policy = BatchWritePolicy::default();
 
-    // Apply batch-level policy dict first (default for all records)
     if let Some(dict) = policy_dict {
         if let Some(val) = dict.get_item("ttl")? {
             policy.expiration = parse_ttl(val.extract::<i64>()?)?;
         }
     }
 
-    // Apply per-record meta — overrides batch-level TTL
-    if let Some(meta_dict) = meta {
-        if let Some(ttl) = meta_dict.get_item("ttl")? {
-            policy.expiration = parse_ttl(ttl.extract::<i64>()?)?;
-        }
-    }
+    Ok(policy)
+}
 
+/// Apply per-record meta TTL to a [`BatchWritePolicy`], overriding the
+/// batch-level default.
+pub fn apply_record_meta(
+    base: &BatchWritePolicy,
+    meta: &Bound<'_, PyDict>,
+) -> PyResult<BatchWritePolicy> {
+    let mut policy = base.clone();
+    if let Some(ttl) = meta.get_item("ttl")? {
+        policy.expiration = parse_ttl(ttl.extract::<i64>()?)?;
+    }
     Ok(policy)
 }

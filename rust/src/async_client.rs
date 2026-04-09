@@ -828,7 +828,7 @@ impl PyAsyncClient {
         let raw_records = crate::numpy_support::numpy_to_records(
             py, data, _dtype, namespace, set_name, key_field,
         )?;
-        let write_policy = crate::policy::batch_policy::parse_batch_write_policy(policy, None)?;
+        let write_policy = crate::policy::batch_policy::parse_batch_write_policy(policy)?;
         let records: Vec<_> = raw_records
             .into_iter()
             .map(|(k, b)| (k, b, write_policy.clone()))
