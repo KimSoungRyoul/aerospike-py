@@ -312,13 +312,18 @@ pub async fn do_batch_write(
     max_retries: u32,
     op_name: &str,
 ) -> PyResult<Vec<BatchRecord>> {
-    // Build initial batch operations using per-record write policies
+    // Pre-build ops once per record; reused on retry via clone
+    let cached_ops: Vec<Vec<aerospike_core::operations::Operation>> = records
+        .iter()
+        .map(|(_, bins, _)| bins.iter().map(aerospike_core::operations::put).collect())
+        .collect();
+
+    // Build initial batch operations using cached ops
     let batch_ops: Vec<BatchOperation> = records
         .iter()
-        .map(|(key, bins, write_policy)| {
-            let ops: Vec<aerospike_core::operations::Operation> =
-                bins.iter().map(aerospike_core::operations::put).collect();
-            BatchOperation::write(write_policy, key.clone(), ops)
+        .zip(cached_ops.iter())
+        .map(|((key, _, write_policy), ops)| {
+            BatchOperation::write(write_policy, key.clone(), ops.clone())
         })
         .collect();
 
@@ -337,6 +342,8 @@ pub async fn do_batch_write(
     }
 
     // Retry loop: only retry records with retryable error codes
+    let start = std::time::Instant::now();
+    let timeout_ms = batch_policy.base_policy.total_timeout as u64;
     let mut retry_indices: Vec<usize> = Vec::new();
     for attempt in 0..max_retries {
         // Find indices of failed records that are retryable
@@ -360,6 +367,21 @@ pub async fn do_batch_write(
 
         // Full Jitter backoff: random_between(0, min(500ms, 10ms * 2^attempt))
         let backoff_ms = compute_backoff_ms(attempt, 10, 500);
+
+        // Elapsed time guard: stop retries if remaining time is insufficient
+        if timeout_ms > 0 {
+            let elapsed_ms = start.elapsed().as_millis() as u64;
+            if elapsed_ms + backoff_ms >= timeout_ms {
+                log::warn!(
+                    "batch_write retry: elapsed {}ms + backoff {}ms >= timeout {}ms, stopping",
+                    elapsed_ms,
+                    backoff_ms,
+                    timeout_ms
+                );
+                break;
+            }
+        }
+
         log::info!(
             "batch_write retry: {} failed records, attempt {}/{}, backoff {}ms",
             retry_indices.len(),
@@ -369,14 +391,12 @@ pub async fn do_batch_write(
         );
         tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
 
-        // Build retry batch from failed records only
+        // Build retry batch from cached ops (avoids rebuilding from bins)
         let retry_ops: Vec<BatchOperation> = retry_indices
             .iter()
             .map(|&i| {
-                let (key, bins, write_policy) = &records[i];
-                let ops: Vec<aerospike_core::operations::Operation> =
-                    bins.iter().map(aerospike_core::operations::put).collect();
-                BatchOperation::write(write_policy, key.clone(), ops)
+                let (key, _, write_policy) = &records[i];
+                BatchOperation::write(write_policy, key.clone(), cached_ops[i].clone())
             })
             .collect();
 
