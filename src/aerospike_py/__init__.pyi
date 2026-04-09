@@ -1,6 +1,5 @@
 """Type stubs for the aerospike_py package."""
 
-from collections.abc import Iterator
 from typing import Any, Callable, Optional, Union, overload
 
 import numpy as np
@@ -14,14 +13,17 @@ from aerospike_py.numpy_batch import NumpyBatchRecords as NumpyBatchRecords
 from aerospike_py.types import (
     AdminPolicy as AdminPolicy,
     AerospikeKey as AerospikeKey,
+    AerospikeRecord as AerospikeRecord,
     BatchPolicy as BatchPolicy,
     BatchRecord as BatchRecord,
     BatchRecords as BatchRecords,
+    BatchWriteResult as BatchWriteResult,
     Bins as Bins,
     BinTuple as BinTuple,
     ClientConfig as ClientConfig,
     ExistsResult as ExistsResult,
     InfoNodeResult as InfoNodeResult,
+    UserKey as UserKey,
     OperateOrderedResult as OperateOrderedResult,
     Privilege as Privilege,
     QueryPolicy as QueryPolicy,
@@ -580,6 +582,9 @@ class Client:
     ) -> Union[BatchRecords, NumpyBatchRecords]:
         """Read multiple records in a single batch call.
 
+        Returns ``dict[UserKey, AerospikeRecord]`` mapping each user key to
+        its bins dict. Only successful reads with a user key are included.
+
         Args:
             keys: List of ``(namespace, set, primary_key)`` tuples.
             bins: Optional list of bin names to read. ``None`` reads all bins;
@@ -589,19 +594,15 @@ class Client:
                 ``NumpyBatchRecords`` instead of ``BatchRecords``.
 
         Returns:
-            ``BatchRecords`` (or ``NumpyBatchRecords`` when ``_dtype`` is set).
+            ``BatchRecords`` (``dict[UserKey, AerospikeRecord]``) or
+            ``NumpyBatchRecords`` when ``_dtype`` is set.
 
         Example:
             ```python
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
-
-            batch = client.batch_read(keys)
-            for br in batch.batch_records:
-                if br.result == 0 and br.record is not None:
-                    print(br.record.bins)
-
-            # Read specific bins
-            batch = client.batch_read(keys, bins=["name", "age"])
+            result = client.batch_read(keys, bins=["name", "age"])
+            for user_key, bins_dict in result.items():
+                print(user_key, bins_dict)
             ```
         """
         ...
@@ -615,7 +616,7 @@ class Client:
         key_field: str = "_key",
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Write multiple records from a numpy structured array.
 
         Each row of the structured array becomes a separate write operation.
@@ -656,7 +657,7 @@ class Client:
         records: list[tuple[Key, dict[str, Any]]],
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Write multiple records with per-record bins in a single batch call.
 
         Each record is a ``(key, bins)`` tuple where key is
@@ -694,7 +695,7 @@ class Client:
         keys: list[Key],
         ops: list[dict[str, Any]],
         policy: Optional[dict[str, Any]] = None,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Execute operations on multiple records in a single batch call.
 
         Args:
@@ -725,7 +726,7 @@ class Client:
         self,
         keys: list[Key],
         policy: Optional[dict[str, Any]] = None,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Delete multiple records in a single batch call.
 
         Args:
@@ -1041,34 +1042,6 @@ class Client:
         write_quota: int = 0,
         policy: Optional[dict[str, Any]] = None,
     ) -> None: ...
-
-class BatchReadHandle:
-    """Handle wrapping raw Rust batch read results with deferred conversion.
-
-    Returned by ``AsyncClient.batch_read()``. The async future completes with
-    near-zero GIL cost; actual data conversion is deferred to method calls.
-    """
-
-    def __len__(self) -> int: ...
-    def __getitem__(self, index: int) -> BatchRecord: ...
-    def __iter__(self) -> Iterator[BatchRecord]: ...
-    def as_dict(self) -> dict[Union[str, int], dict[str, Any]]:
-        """Fastest access path: returns ``dict[key, bins_dict]`` directly.
-
-        Records without a ``user_key`` (digest-only) or with a failed result
-        are excluded. Use ``batch_records`` to access all records.
-        """
-        ...
-    @property
-    def batch_records(self) -> list[BatchRecord]:
-        """Compatibility path: ``list[BatchRecord]`` NamedTuples."""
-        ...
-    def found_count(self) -> int:
-        """Count of records with successful result code."""
-        ...
-    def keys(self) -> list[Union[str, int]]:
-        """Extract just the user keys without converting record data."""
-        ...
 
 class AsyncClient:
     """Aerospike client for asynchronous operations.
@@ -1567,7 +1540,7 @@ class AsyncClient:
         bins: Optional[list[str]] = None,
         policy: Optional[dict[str, Any]] = None,
         _dtype: None = None,
-    ) -> BatchReadHandle: ...
+    ) -> BatchRecords: ...
     @overload
     async def batch_read(
         self,
@@ -1583,11 +1556,14 @@ class AsyncClient:
         bins: Optional[list[str]] = None,
         policy: Optional[dict[str, Any]] = None,
         _dtype: Optional[np.dtype] = None,
-    ) -> Union[BatchReadHandle, NumpyBatchRecords]:
+    ) -> Union[BatchRecords, NumpyBatchRecords]:
         """Read multiple records in a single batch call.
 
-        Returns a :class:`BatchReadHandle` — a zero-conversion handle wrapping
-        raw Rust results. The async future completes with near-zero GIL cost.
+        Returns ``dict[UserKey, AerospikeRecord]`` mapping each user key to
+        its bins dict. Only successful reads with a user key are included.
+
+        The async future completes with near-zero GIL cost (< 0.01ms);
+        dict conversion runs in the event loop coroutine context.
 
         Args:
             keys: List of ``(namespace, set, primary_key)`` tuples.
@@ -1595,23 +1571,18 @@ class AsyncClient:
                 an empty list performs an existence check only.
             policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
             _dtype: Optional NumPy dtype. When provided, returns
-                ``NumpyBatchRecords`` instead of ``BatchReadHandle``.
+                ``NumpyBatchRecords`` instead of ``BatchRecords``.
 
         Returns:
-            ``BatchReadHandle`` (or ``NumpyBatchRecords`` when ``_dtype`` is set).
+            ``BatchRecords`` (``dict[UserKey, AerospikeRecord]``) or
+            ``NumpyBatchRecords`` when ``_dtype`` is set.
 
         Example:
             ```python
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
-            handle = await client.batch_read(keys, bins=["name", "age"])
-
-            # Fast path — dict[key, bins_dict]:
-            data = handle.as_dict()
-
-            # Compat path — list[BatchRecord] NamedTuples:
-            for br in handle.batch_records:
-                if br.result == 0 and br.record is not None:
-                    print(br.record.bins)
+            result = await client.batch_read(keys, bins=["name", "age"])
+            for user_key, bins_dict in result.items():
+                print(user_key, bins_dict)
             ```
         """
         ...
@@ -1625,7 +1596,7 @@ class AsyncClient:
         key_field: str = "_key",
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Write multiple records from a numpy structured array (async).
 
         Each row of the structured array becomes a separate write operation.
@@ -1666,7 +1637,7 @@ class AsyncClient:
         records: list[tuple[Key, dict[str, Any]]],
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Write multiple records with per-record bins (async).
 
         Each record is a ``(key, bins)`` tuple where key is
@@ -1703,7 +1674,7 @@ class AsyncClient:
         keys: list[Key],
         ops: list[dict[str, Any]],
         policy: Optional[dict[str, Any]] = None,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Execute operations on multiple records in a single batch call.
 
         Args:
@@ -1734,7 +1705,7 @@ class AsyncClient:
         self,
         keys: list[Key],
         policy: Optional[dict[str, Any]] = None,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Delete multiple records in a single batch call.
 
         Args:

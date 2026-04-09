@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 
 use crate::backpressure::OperationLimiter;
-use crate::batch_types::batch_to_batch_records_py;
+use crate::batch_types::{batch_to_batch_records_py, batch_to_dict_py};
 use crate::errors::as_to_pyerr;
 use crate::policy::admin_policy::{parse_privileges, role_to_py, user_to_py};
 use crate::policy::client_policy::{parse_backpressure_config, parse_client_policy};
@@ -1135,8 +1135,8 @@ impl PyClient {
         match _dtype {
             Some(d) => crate::numpy_support::batch_to_numpy_py(py, &results, d),
             None => {
-                let br = batch_to_batch_records_py(py, results)?;
-                Ok(Py::new(py, br)?.into_any())
+                let dict = batch_to_dict_py(py, &results)?;
+                Ok(dict.unbind().into_any())
             }
         }
     }

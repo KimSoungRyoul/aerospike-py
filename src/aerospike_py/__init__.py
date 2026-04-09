@@ -5,7 +5,7 @@ Drop-in compatible replacement for the aerospike-client-python package.
 
 import logging
 
-from aerospike_py.types import BatchRecord, BatchRecords  # noqa: F401
+from aerospike_py.types import BatchRecord, BatchRecords, BatchWriteResult, UserKey, AerospikeRecord  # noqa: F401
 
 # Import all exceptions from native module
 from aerospike_py._aerospike import (  # noqa: F401
@@ -259,7 +259,7 @@ from aerospike_py._types import HLLPolicy, ListPolicy, MapPolicy, Operation  # n
 
 # Client and query classes (re-exported from internal modules)
 from aerospike_py._client import Client, Query  # noqa: F401
-from aerospike_py._async_client import AsyncClient, AsyncQuery, BatchReadHandle  # noqa: F401
+from aerospike_py._async_client import AsyncClient, AsyncQuery  # noqa: F401
 
 # Observability utilities (re-exported from internal module)
 from aerospike_py._observability import (  # noqa: F401
@@ -338,8 +338,10 @@ __all__ = [
     "Query",
     "AsyncQuery",
     "BatchRecord",
-    "BatchReadHandle",
     "BatchRecords",
+    "BatchWriteResult",
+    "UserKey",
+    "AerospikeRecord",
     "NumpyBatchRecords",
     "client",
     "async_client",

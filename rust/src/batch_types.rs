@@ -37,6 +37,7 @@ enum LazyRecordCell {
 
 impl LazyRecordCell {
     /// Convert to Python on first access; cache for subsequent accesses.
+    #[allow(clippy::wrong_self_convention)]
     fn to_python(&mut self, py: Python) -> PyResult<Py<PyAny>> {
         match self {
             LazyRecordCell::Pending { record, key_py } => {
@@ -114,10 +115,18 @@ impl<'py> IntoPyObject<'py> for PendingBatchRecords {
 
 /// Deferred batch read → Python conversion.
 ///
-/// The `Handle` variant wraps results in [`PyBatchReadHandle`] with near-zero
-/// GIL cost (just `Arc::new` + `Py::new`). Actual data conversion is deferred
-/// to when the user calls methods on the handle in the event loop thread,
-/// eliminating GIL contention across concurrent `batch_read` futures.
+/// **Why not convert to `PyDict` directly here?**
+///
+/// `IntoPyObject` runs inside `future_into_py`'s `spawn_blocking` callback,
+/// which holds the GIL. Under `asyncio.gather` with N concurrent `batch_read`
+/// calls, N `spawn_blocking` threads compete for the GIL sequentially.
+///
+/// - If we convert to `PyDict` here: each thread holds GIL for 1-5ms
+///   → total serialized time = N × 1-5ms (blocks Tokio from initiating new I/O).
+/// - With `Handle` (Arc wrap only): each thread holds GIL for < 0.01ms
+///   → threads release almost instantly, Tokio workers are freed for new I/O.
+///   The heavier dict conversion runs later via `handle.as_dict()` in the
+///   Python coroutine on the event loop, where there is no contention.
 pub enum PendingBatchRead {
     /// Zero-conversion handle: GIL hold < 0.01ms (Arc wrap only).
     /// Actual conversion happens on handle method calls in the event loop.
@@ -216,10 +225,7 @@ impl PyBatchReadHandle {
     fn found_count(&self) -> usize {
         self.inner
             .iter()
-            .filter(|br| match &br.result_code {
-                None | Some(ResultCode::Ok) => true,
-                _ => false,
-            })
+            .filter(|br| matches!(&br.result_code, None | Some(ResultCode::Ok)))
             .count()
     }
 
@@ -303,8 +309,8 @@ fn single_batch_record_to_py(py: Python<'_>, br: &BatchRecord) -> PyResult<Py<Py
 /// Allocation count for N records with B bins each:
 /// - Standard path: N × (5 key + 1 meta + 1 bins + B values + 1 tuple + 1 wrapper) = N×(9+B)
 /// - AsDict path:   N × (1 bins + B values) + 1 outer dict = N×(1+B) + 1
-/// → Savings: N × 8 allocations (e.g., 1800 × 8 = 14,400 alloc saved)
-fn batch_to_dict_py<'py>(
+///   → Savings: N × 8 allocations (e.g., 1800 × 8 = 14,400 alloc saved)
+pub fn batch_to_dict_py<'py>(
     py: Python<'py>,
     results: &[BatchRecord],
 ) -> PyResult<Bound<'py, PyDict>> {
