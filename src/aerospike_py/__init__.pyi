@@ -651,9 +651,7 @@ class Client:
 
     def batch_write(
         self,
-        records: list[
-            tuple[Key, dict[str, Any]] | tuple[Key, dict[str, Any], WriteMeta]
-        ],
+        records: list[tuple[Key, dict[str, Any]] | tuple[Key, dict[str, Any], WriteMeta]],
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
     ) -> BatchRecords:
@@ -1636,9 +1634,7 @@ class AsyncClient:
 
     async def batch_write(
         self,
-        records: list[
-            tuple[Key, dict[str, Any]] | tuple[Key, dict[str, Any], WriteMeta]
-        ],
+        records: list[tuple[Key, dict[str, Any]] | tuple[Key, dict[str, Any], WriteMeta]],
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
     ) -> BatchRecords:
