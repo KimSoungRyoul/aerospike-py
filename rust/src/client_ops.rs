@@ -337,20 +337,18 @@ pub async fn do_batch_write(
     }
 
     // Retry loop: only retry records with retryable error codes
+    let mut retry_indices: Vec<usize> = Vec::new();
     for attempt in 0..max_retries {
         // Find indices of failed records that are retryable
-        let retry_indices: Vec<usize> = results
-            .iter()
-            .enumerate()
-            .filter_map(|(i, br)| {
-                if let Some(rc) = &br.result_code {
-                    if *rc != aerospike_core::ResultCode::Ok && is_retryable_result_code(rc) {
-                        return Some(i);
-                    }
+        retry_indices.clear();
+        retry_indices.extend(results.iter().enumerate().filter_map(|(i, br)| {
+            if let Some(rc) = &br.result_code {
+                if *rc != aerospike_core::ResultCode::Ok && is_retryable_result_code(rc) {
+                    return Some(i);
                 }
-                None
-            })
-            .collect();
+            }
+            None
+        }));
 
         if retry_indices.is_empty() {
             log::debug!(
@@ -411,10 +409,10 @@ pub async fn do_batch_write(
                 retry_results.len()
             );
         }
-        for (retry_pos, &original_idx) in retry_indices.iter().enumerate() {
-            if retry_pos < retry_results.len() {
-                results[original_idx] = retry_results[retry_pos].clone();
-            }
+        for (original_idx, retry_record) in
+            retry_indices.iter().copied().zip(retry_results.into_iter())
+        {
+            results[original_idx] = retry_record;
         }
     }
 
