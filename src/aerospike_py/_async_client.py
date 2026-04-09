@@ -83,7 +83,7 @@ class BatchReadHandle:
             print(br.record.bins)
     """
 
-    __slots__ = ("_inner", "_cached_batch_records")
+    __slots__ = ("_cached_batch_records", "_inner")
 
     def __init__(self, inner):
         self._inner = inner
@@ -92,6 +92,9 @@ class BatchReadHandle:
     def __len__(self) -> int:
         return len(self._inner)
 
+    def __getitem__(self, index):
+        return _wrap_batch_record(self._inner[index])
+
     def __iter__(self):
         return iter(self.batch_records)
 
@@ -99,6 +102,8 @@ class BatchReadHandle:
         """Fastest access path: returns ``dict[key, bins_dict]`` directly.
 
         Skips all intermediate objects (BatchRecord wrapper, key tuple, meta dict).
+        Records without a ``user_key`` (digest-only) or with a failed result are
+        excluded. Use ``batch_records`` to access all records including failures.
         """
         return self._inner.as_dict()
 
@@ -106,9 +111,7 @@ class BatchReadHandle:
     def batch_records(self):
         """Compatibility path: ``list[BatchRecord]`` NamedTuples. Lazy and cached."""
         if self._cached_batch_records is None:
-            self._cached_batch_records = [
-                _wrap_batch_record(br) for br in self._inner.batch_records
-            ]
+            self._cached_batch_records = [_wrap_batch_record(br) for br in self._inner.batch_records]
         return self._cached_batch_records
 
     def found_count(self) -> int:

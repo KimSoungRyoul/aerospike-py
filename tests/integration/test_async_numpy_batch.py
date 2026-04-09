@@ -56,13 +56,13 @@ class TestAsyncNumericBatchRead:
         np.testing.assert_array_equal(result.result_codes, [0, 0, 0])
 
     async def test_without_dtype(self, async_client, cleanup):
-        """Returns standard BatchRecords when _dtype=None."""
+        """Returns BatchReadHandle when _dtype=None."""
         key = (NS, SET, "nodtype_1")
         cleanup.append(key)
         await async_client.put(key, {"x": 1})
 
         result = await async_client.batch_read([key])
-        assert isinstance(result, aerospike_py.BatchRecords)
+        assert isinstance(result, aerospike_py.BatchReadHandle)
 
 
 # ── meta (gen, ttl) verification ───────────────────────────────

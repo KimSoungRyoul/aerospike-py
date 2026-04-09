@@ -1050,9 +1050,14 @@ class BatchReadHandle:
     """
 
     def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> BatchRecord: ...
     def __iter__(self) -> Iterator[BatchRecord]: ...
     def as_dict(self) -> dict[Union[str, int], dict[str, Any]]:
-        """Fastest access path: returns ``dict[key, bins_dict]`` directly."""
+        """Fastest access path: returns ``dict[key, bins_dict]`` directly.
+
+        Records without a ``user_key`` (digest-only) or with a failed result
+        are excluded. Use ``batch_records`` to access all records.
+        """
         ...
     @property
     def batch_records(self) -> list[BatchRecord]:

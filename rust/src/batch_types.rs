@@ -21,8 +21,8 @@ use crate::types::record::record_to_py_with_key;
 /// Holds either raw Rust Record data (pre-conversion) or the cached
 /// Python tuple `(key, meta, bins)` after first access.
 ///
-/// Thread-safe under PyO3's model: the `#[getter]` method always holds
-/// the GIL, so `RefCell::borrow_mut()` cannot race.
+/// Uses `Mutex` to satisfy `Send + Sync` required by `#[pyclass]`.
+/// In practice, all access is single-threaded (GIL held), so contention is zero.
 enum LazyRecordCell {
     /// Raw Rust Record awaiting lazy conversion.
     Pending {
@@ -197,6 +197,8 @@ impl PyBatchReadHandle {
     /// Fastest access path: returns `dict[key_str, bins_dict]` directly.
     ///
     /// Skips all intermediate objects (BatchRecord wrapper, key tuple, meta dict).
+    /// Records without a `user_key` (digest-only) or with a failed result are
+    /// excluded from the dict. Use `batch_records` to access all records.
     fn as_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         batch_to_dict_py(py, &self.inner)
     }
