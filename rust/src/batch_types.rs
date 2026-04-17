@@ -127,7 +127,13 @@ impl<'py> IntoPyObject<'py> for PendingBatchRecords {
 pub enum PendingBatchRead {
     /// Zero-conversion handle: GIL hold < 0.01ms (Arc wrap only).
     /// Actual conversion happens on handle method calls in the event loop.
-    Handle(Vec<BatchRecord>),
+    Handle {
+        results: Vec<BatchRecord>,
+        /// Timestamp when Rust async I/O completed — populated only when internal
+        /// stage profiling is enabled. `None` avoids an `Instant::now()` syscall
+        /// per batch_read on the hot path.
+        io_complete_at: Option<std::time::Instant>,
+    },
     /// Numpy: returns structured NumPy array (eager, already fast).
     Numpy {
         results: Vec<BatchRecord>,
@@ -142,17 +148,29 @@ impl<'py> IntoPyObject<'py> for PendingBatchRead {
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         match self {
-            PendingBatchRead::Handle(results) => {
-                // ── Stage: into_pyobject (GIL held in spawn_blocking) ──
-                let t = std::time::Instant::now();
-                let handle = PyBatchReadHandle {
-                    inner: Arc::new(results),
-                };
-                let result = Py::new(py, handle)?.into_bound(py).into_any();
-                crate::metrics::record_internal_stage(
-                    "into_pyobject", "batch_read", t.elapsed().as_secs_f64(),
-                );
-                Ok(result)
+            PendingBatchRead::Handle {
+                results,
+                io_complete_at,
+            } => {
+                // ── (C) spawn_blocking queue delay: io_complete → into_pyobject ──
+                if let Some(t) = io_complete_at {
+                    crate::metrics::record_internal_stage_unchecked(
+                        "spawn_blocking_delay",
+                        "batch_read",
+                        t.elapsed().as_secs_f64(),
+                    );
+                }
+
+                // Capture into_pyobject_at only when profiling is ON.
+                let into_pyobject_at = crate::metrics::maybe_now();
+                crate::stage_timer!("into_pyobject", "batch_read", {
+                    let handle = PyBatchReadHandle {
+                        inner: Arc::new(results),
+                        into_pyobject_at,
+                    };
+                    let result = Py::new(py, handle)?.into_bound(py).into_any();
+                    Ok(result)
+                })
             }
             PendingBatchRead::Numpy { results, dtype } => {
                 crate::numpy_support::batch_to_numpy_py(py, &results, &dtype.into_bound(py))
@@ -179,6 +197,9 @@ impl<'py> IntoPyObject<'py> for PendingBatchRead {
 #[pyclass(name = "BatchReadHandle")]
 pub struct PyBatchReadHandle {
     inner: Arc<Vec<BatchRecord>>,
+    /// Timestamp when `into_pyobject` completed — populated only when internal
+    /// stage profiling is enabled (for `event_loop_resume_delay` measurement).
+    into_pyobject_at: Option<std::time::Instant>,
 }
 
 #[pymethods]
@@ -211,13 +232,36 @@ impl PyBatchReadHandle {
     /// Records without a `user_key` (digest-only) or with a failed result are
     /// excluded from the dict. Use `batch_records` to access all records.
     fn as_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        // ── (D) event loop resume delay: into_pyobject → as_dict call ──
+        if let Some(t) = self.into_pyobject_at {
+            crate::metrics::record_internal_stage_unchecked(
+                "event_loop_resume_delay",
+                "batch_read",
+                t.elapsed().as_secs_f64(),
+            );
+        }
+
         // ── Stage: as_dict (GIL held in event loop coroutine) ──
-        let t = std::time::Instant::now();
-        let result = batch_to_dict_py(py, &self.inner);
-        crate::metrics::record_internal_stage(
-            "as_dict", "batch_read", t.elapsed().as_secs_f64(),
-        );
-        result
+        crate::stage_timer!("as_dict", "batch_read", batch_to_dict_py(py, &self.inner))
+    }
+
+    /// Merge multiple handles into a list of dicts in a single GIL acquisition.
+    ///
+    /// Avoids 9 separate event-loop coroutine resumes when using `asyncio.gather`.
+    /// Instead of `[h.as_dict() for h in handles]`, call
+    /// `BatchReadHandle.merge_as_dict(handles)` once.
+    #[staticmethod]
+    fn merge_as_dict<'py>(
+        handles: Vec<PyRef<'py, Self>>,
+        py: Python<'py>,
+    ) -> PyResult<Vec<Bound<'py, PyDict>>> {
+        crate::stage_timer!("merge_as_dict", "batch_read", {
+            let result: PyResult<Vec<_>> = handles
+                .iter()
+                .map(|h| batch_to_dict_py(py, &h.inner))
+                .collect();
+            result
+        })
     }
 
     /// Compatibility path: returns `list[BatchRecord]` with lazy per-record conversion.

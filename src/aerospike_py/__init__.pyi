@@ -6,6 +6,7 @@ Claude Code Plugin::
     claude plugin install aerospike-ce-ecosystem
 """
 
+import contextlib
 from typing import Any, Callable, Optional, Union, overload
 
 import numpy as np
@@ -2336,6 +2337,40 @@ def is_metrics_enabled() -> bool:
         ```python
         if aerospike_py.is_metrics_enabled():
             print(aerospike_py.get_metrics())
+        ```
+    """
+    ...
+
+def set_internal_stage_metrics_enabled(enabled: bool) -> None:
+    """Enable or disable internal stage profiling metrics.
+
+    Controls the ``db_client_internal_stage_seconds`` histogram that captures
+    fine-grained timing per batch_read stage. Disabled by default — zero
+    overhead when off. Set ``AEROSPIKE_PY_INTERNAL_METRICS=1`` to enable at
+    process start.
+
+    Args:
+        enabled: ``True`` to enable, ``False`` to disable (default).
+    """
+    ...
+
+def is_internal_stage_metrics_enabled() -> bool:
+    """Check if internal stage profiling metrics are currently enabled.
+
+    Returns:
+        ``True`` if stage profiling is on, ``False`` otherwise (default).
+    """
+    ...
+
+def internal_stage_profiling() -> contextlib.AbstractContextManager[None]:
+    """Context manager that scopes internal stage profiling to a code block.
+
+    Enables profiling on entry and restores the previous state on exit.
+
+    Example:
+        ```python
+        with aerospike_py.internal_stage_profiling():
+            handle = await client.batch_read(keys)
         ```
     """
     ...
