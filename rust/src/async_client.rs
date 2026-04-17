@@ -698,6 +698,12 @@ impl PyAsyncClient {
     // ── Batch ─────────────────────────────────────────────────
 
     /// Read multiple records (async).
+    ///
+    /// Returns a `BatchReadHandle` — a zero-conversion handle wrapping raw
+    /// Rust results. The async future completes with near-zero GIL cost
+    /// (just `Arc::new`). Call methods on the handle to access data:
+    /// - `handle.as_dict()` — fastest, returns `dict[key, bins_dict]`
+    /// - `handle.batch_records` — compat, returns `list[BatchRecord]`
     #[pyo3(signature = (keys, bins=None, policy=None, _dtype=None))]
     fn batch_read<'py>(
         &self,
@@ -729,7 +735,7 @@ impl PyAsyncClient {
                     })?,
                 })
             } else {
-                Ok(PendingBatchRead::Standard(results))
+                Ok(PendingBatchRead::Handle(results))
             }
         })
     }
@@ -775,7 +781,11 @@ impl PyAsyncClient {
         let client = self.get_client()?;
         let limiter = self.limiter.clone();
         let args = client_common::prepare_batch_write_args(
-            py, records, policy, retry, &self.connection_info,
+            py,
+            records,
+            policy,
+            retry,
+            &self.connection_info,
         )?;
 
         future_into_py(py, async move {
@@ -821,9 +831,14 @@ impl PyAsyncClient {
         let parent_ctx = client_common::extract_parent_context(py);
         let conn_info = self.connection_info.clone();
 
-        let records = crate::numpy_support::numpy_to_records(
+        let raw_records = crate::numpy_support::numpy_to_records(
             py, data, _dtype, namespace, set_name, key_field,
         )?;
+        let write_policy = crate::policy::batch_policy::parse_batch_write_policy(policy)?;
+        let records: Vec<_> = raw_records
+            .into_iter()
+            .map(|(k, b)| (k, b, write_policy.clone()))
+            .collect();
 
         let ns = namespace.to_string();
         let set = set_name.to_string();

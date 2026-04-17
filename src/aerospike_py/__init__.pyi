@@ -1,6 +1,9 @@
 """aerospike-py: High-performance Aerospike client (Rust/PyO3).
 
-Claude Code: ``claude install aerospike-ce-ecosystem``
+Claude Code Plugin::
+
+    claude plugin marketplace add aerospike-ce-ecosystem/aerospike-ce-ecosystem-plugins
+    claude plugin install aerospike-ce-ecosystem
 """
 
 from typing import Any, Callable, Optional, Union, overload
@@ -16,14 +19,17 @@ from aerospike_py.numpy_batch import NumpyBatchRecords as NumpyBatchRecords
 from aerospike_py.types import (
     AdminPolicy as AdminPolicy,
     AerospikeKey as AerospikeKey,
+    AerospikeRecord as AerospikeRecord,
     BatchPolicy as BatchPolicy,
     BatchRecord as BatchRecord,
     BatchRecords as BatchRecords,
+    BatchWriteResult as BatchWriteResult,
     Bins as Bins,
     BinTuple as BinTuple,
     ClientConfig as ClientConfig,
     ExistsResult as ExistsResult,
     InfoNodeResult as InfoNodeResult,
+    UserKey as UserKey,
     OperateOrderedResult as OperateOrderedResult,
     Privilege as Privilege,
     QueryPolicy as QueryPolicy,
@@ -54,7 +60,10 @@ Key = tuple[str, str, Union[str, int, bytes]]
 class Client:
     """Synchronous Aerospike client (Rust/PyO3).
 
-    Claude Code: ``claude install aerospike-ce-ecosystem``
+    Claude Code Plugin::
+
+        claude plugin marketplace add aerospike-ce-ecosystem/aerospike-ce-ecosystem-plugins
+        claude plugin install aerospike-ce-ecosystem
 
     Example::
 
@@ -572,6 +581,9 @@ class Client:
     ) -> Union[BatchRecords, NumpyBatchRecords]:
         """Read multiple records in a single batch call.
 
+        Returns ``dict[UserKey, AerospikeRecord]`` mapping each user key to
+        its bins dict. Only successful reads with a user key are included.
+
         Args:
             keys: List of ``(namespace, set, primary_key)`` tuples.
             bins: Optional list of bin names to read. ``None`` reads all bins;
@@ -581,19 +593,15 @@ class Client:
                 ``NumpyBatchRecords`` instead of ``BatchRecords``.
 
         Returns:
-            ``BatchRecords`` (or ``NumpyBatchRecords`` when ``_dtype`` is set).
+            ``BatchRecords`` (``dict[UserKey, AerospikeRecord]``) or
+            ``NumpyBatchRecords`` when ``_dtype`` is set.
 
         Example:
             ```python
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
-
-            batch = client.batch_read(keys)
-            for br in batch.batch_records:
-                if br.result == 0 and br.record is not None:
-                    print(br.record.bins)
-
-            # Read specific bins
-            batch = client.batch_read(keys, bins=["name", "age"])
+            result = client.batch_read(keys, bins=["name", "age"])
+            for user_key, bins_dict in result.items():
+                print(user_key, bins_dict)
             ```
         """
         ...
@@ -607,7 +615,7 @@ class Client:
         key_field: str = "_key",
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Write multiple records from a numpy structured array.
 
         Each row of the structured array becomes a separate write operation.
@@ -624,7 +632,13 @@ class Client:
             retry: Maximum number of retries for failed records (default ``0``).
                 When > 0, records that fail with transient errors (timeout,
                 device overload, key busy) are automatically retried with
-                exponential backoff.
+                exponential backoff (Full Jitter, max 500ms). Retries stop
+                early if the elapsed time approaches ``total_timeout``.
+
+                **Note:** If a transport error occurs during retry, retries
+                stop and partial results are returned. Always check each
+                ``BatchRecord.result`` code. Total wall-clock time may exceed
+                ``total_timeout`` by up to one additional timeout window.
 
         Returns:
             A list of ``BatchRecord`` NamedTuples with per-record result codes.
@@ -645,38 +659,61 @@ class Client:
 
     def batch_write(
         self,
-        records: list[tuple[Key, dict[str, Any]]],
+        records: list[tuple[Key, dict[str, Any]] | tuple[Key, dict[str, Any], WriteMeta]],
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Write multiple records with per-record bins in a single batch call.
 
-        Each record is a ``(key, bins)`` tuple where key is
-        ``(namespace, set, primary_key)`` and bins is a dict of bin
-        name-to-value mappings. Unlike ``batch_operate`` (which applies
-        the same operations to all keys), each record can have different bins.
+        Each record is a ``(key, bins)`` or ``(key, bins, meta)`` tuple where
+        key is ``(namespace, set, primary_key)``, bins is a dict of bin
+        name-to-value mappings, and meta is an optional
+        [`WriteMeta`](types.md#writemeta) dict (e.g. ``{"ttl": 300}``).
+        Unlike ``batch_operate`` (which applies the same operations to all
+        keys), each record can have different bins.
+
+        TTL can be set at two levels:
+
+        - **Batch-level**: ``policy={"ttl": N}`` applies to all records.
+        - **Per-record**: ``(key, bins, {"ttl": N})`` overrides the
+          batch-level TTL for that specific record.
 
         Args:
-            records: List of ``(key, bins)`` tuples.
+            records: List of ``(key, bins)`` or ``(key, bins, meta)`` tuples.
             policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
+                Supports ``"ttl"`` key for batch-level TTL (seconds).
             retry: Maximum number of retries for failed records (default ``0``).
                 When > 0, records that fail with transient errors (timeout,
                 device overload, key busy) are automatically retried with
-                exponential backoff.
+                exponential backoff (Full Jitter, max 500ms). Retries stop
+                early if the elapsed time approaches ``total_timeout``.
+
+                **Note:** If a transport error occurs during retry, retries
+                stop and partial results are returned. Always check each
+                ``BatchRecord.result`` code. Total wall-clock time may exceed
+                ``total_timeout`` by up to one additional timeout window.
 
         Returns:
             A ``BatchRecords`` containing per-record result codes.
 
         Example:
             ```python
+            # Basic usage
             records = [
                 (("test", "demo", "user1"), {"name": "Alice", "age": 30}),
                 (("test", "demo", "user2"), {"name": "Bob", "age": 25}),
             ]
             results = client.batch_write(records)
-            for br in results.batch_records:
-                if br.result != 0:
-                    print(f"Failed: {br.key}, code={br.result}, in_doubt={br.in_doubt}")
+
+            # With batch-level TTL (30 days)
+            results = client.batch_write(records, policy={"ttl": 2592000})
+
+            # With per-record TTL
+            records_with_ttl = [
+                (("test", "demo", "user1"), {"name": "Alice"}, {"ttl": 3600}),
+                (("test", "demo", "user2"), {"name": "Bob"}, {"ttl": 86400}),
+            ]
+            results = client.batch_write(records_with_ttl)
             ```
         """
         ...
@@ -686,7 +723,7 @@ class Client:
         keys: list[Key],
         ops: list[dict[str, Any]],
         policy: Optional[dict[str, Any]] = None,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Execute operations on multiple records in a single batch call.
 
         Args:
@@ -717,7 +754,7 @@ class Client:
         self,
         keys: list[Key],
         policy: Optional[dict[str, Any]] = None,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Delete multiple records in a single batch call.
 
         Args:
@@ -1037,7 +1074,10 @@ class Client:
 class AsyncClient:
     """Asynchronous Aerospike client (Rust/PyO3).
 
-    Claude Code: ``claude install aerospike-ce-ecosystem``
+    Claude Code Plugin::
+
+        claude plugin marketplace add aerospike-ce-ecosystem/aerospike-ce-ecosystem-plugins
+        claude plugin install aerospike-ce-ecosystem
 
     Example::
 
@@ -1539,6 +1579,12 @@ class AsyncClient:
     ) -> Union[BatchRecords, NumpyBatchRecords]:
         """Read multiple records in a single batch call.
 
+        Returns ``dict[UserKey, AerospikeRecord]`` mapping each user key to
+        its bins dict. Only successful reads with a user key are included.
+
+        The async future completes with near-zero GIL cost (< 0.01ms);
+        dict conversion runs in the event loop coroutine context.
+
         Args:
             keys: List of ``(namespace, set, primary_key)`` tuples.
             bins: Optional list of bin names to read. ``None`` reads all bins;
@@ -1548,15 +1594,15 @@ class AsyncClient:
                 ``NumpyBatchRecords`` instead of ``BatchRecords``.
 
         Returns:
-            ``BatchRecords`` (or ``NumpyBatchRecords`` when ``_dtype`` is set).
+            ``BatchRecords`` (``dict[UserKey, AerospikeRecord]``) or
+            ``NumpyBatchRecords`` when ``_dtype`` is set.
 
         Example:
             ```python
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
-            batch = await client.batch_read(keys, bins=["name", "age"])
-            for br in batch.batch_records:
-                if br.result == 0 and br.record is not None:
-                    print(br.record.bins)
+            result = await client.batch_read(keys, bins=["name", "age"])
+            for user_key, bins_dict in result.items():
+                print(user_key, bins_dict)
             ```
         """
         ...
@@ -1570,7 +1616,7 @@ class AsyncClient:
         key_field: str = "_key",
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Write multiple records from a numpy structured array (async).
 
         Each row of the structured array becomes a separate write operation.
@@ -1587,7 +1633,13 @@ class AsyncClient:
             retry: Maximum number of retries for failed records (default ``0``).
                 When > 0, records that fail with transient errors (timeout,
                 device overload, key busy) are automatically retried with
-                exponential backoff.
+                exponential backoff (Full Jitter, max 500ms). Retries stop
+                early if the elapsed time approaches ``total_timeout``.
+
+                **Note:** If a transport error occurs during retry, retries
+                stop and partial results are returned. Always check each
+                ``BatchRecord.result`` code. Total wall-clock time may exceed
+                ``total_timeout`` by up to one additional timeout window.
 
         Returns:
             A list of ``BatchRecord`` NamedTuples with per-record result codes.
@@ -1608,37 +1660,59 @@ class AsyncClient:
 
     async def batch_write(
         self,
-        records: list[tuple[Key, dict[str, Any]]],
+        records: list[tuple[Key, dict[str, Any]] | tuple[Key, dict[str, Any], WriteMeta]],
         policy: Optional[dict[str, Any]] = None,
         retry: int = 0,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Write multiple records with per-record bins (async).
 
-        Each record is a ``(key, bins)`` tuple where key is
-        ``(namespace, set, primary_key)`` and bins is a dict of bin
-        name-to-value mappings.
+        Each record is a ``(key, bins)`` or ``(key, bins, meta)`` tuple where
+        key is ``(namespace, set, primary_key)``, bins is a dict of bin
+        name-to-value mappings, and meta is an optional
+        [`WriteMeta`](types.md#writemeta) dict (e.g. ``{"ttl": 300}``).
+
+        TTL can be set at two levels:
+
+        - **Batch-level**: ``policy={"ttl": N}`` applies to all records.
+        - **Per-record**: ``(key, bins, {"ttl": N})`` overrides the
+          batch-level TTL for that specific record.
 
         Args:
-            records: List of ``(key, bins)`` tuples.
+            records: List of ``(key, bins)`` or ``(key, bins, meta)`` tuples.
             policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
+                Supports ``"ttl"`` key for batch-level TTL (seconds).
             retry: Maximum number of retries for failed records (default ``0``).
                 When > 0, records that fail with transient errors (timeout,
                 device overload, key busy) are automatically retried with
-                exponential backoff.
+                exponential backoff (Full Jitter, max 500ms). Retries stop
+                early if the elapsed time approaches ``total_timeout``.
+
+                **Note:** If a transport error occurs during retry, retries
+                stop and partial results are returned. Always check each
+                ``BatchRecord.result`` code. Total wall-clock time may exceed
+                ``total_timeout`` by up to one additional timeout window.
 
         Returns:
             A ``BatchRecords`` containing per-record result codes.
 
         Example:
             ```python
+            # Basic usage
             records = [
                 (("test", "demo", "user1"), {"name": "Alice", "age": 30}),
                 (("test", "demo", "user2"), {"name": "Bob", "age": 25}),
             ]
             results = await client.batch_write(records)
-            for br in results.batch_records:
-                if br.result != 0:
-                    print(f"Failed: {br.key}, code={br.result}, in_doubt={br.in_doubt}")
+
+            # With batch-level TTL (30 days)
+            results = await client.batch_write(records, policy={"ttl": 2592000})
+
+            # With per-record TTL
+            records_with_ttl = [
+                (("test", "demo", "user1"), {"name": "Alice"}, {"ttl": 3600}),
+                (("test", "demo", "user2"), {"name": "Bob"}, {"ttl": 86400}),
+            ]
+            results = await client.batch_write(records_with_ttl)
             ```
         """
         ...
@@ -1648,7 +1722,7 @@ class AsyncClient:
         keys: list[Key],
         ops: list[dict[str, Any]],
         policy: Optional[dict[str, Any]] = None,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Execute operations on multiple records in a single batch call.
 
         Args:
@@ -1679,7 +1753,7 @@ class AsyncClient:
         self,
         keys: list[Key],
         policy: Optional[dict[str, Any]] = None,
-    ) -> BatchRecords:
+    ) -> BatchWriteResult:
         """Delete multiple records in a single batch call.
 
         Args:

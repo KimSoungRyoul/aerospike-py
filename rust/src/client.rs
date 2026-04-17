@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 
 use crate::backpressure::OperationLimiter;
-use crate::batch_types::batch_to_batch_records_py;
+use crate::batch_types::{batch_to_batch_records_py, batch_to_dict_py};
 use crate::errors::as_to_pyerr;
 use crate::policy::admin_policy::{parse_privileges, role_to_py, user_to_py};
 use crate::policy::client_policy::{parse_backpressure_config, parse_client_policy};
@@ -1135,8 +1135,8 @@ impl PyClient {
         match _dtype {
             Some(d) => crate::numpy_support::batch_to_numpy_py(py, &results, d),
             None => {
-                let br = batch_to_batch_records_py(py, &results)?;
-                Ok(Py::new(py, br)?.into_any())
+                let dict = batch_to_dict_py(py, &results)?;
+                Ok(dict.unbind().into_any())
             }
         }
     }
@@ -1166,7 +1166,7 @@ impl PyClient {
                 client_ops::do_batch_operate(&client, &args).await
             })
         })?;
-        let batch = batch_to_batch_records_py(py, &results)?;
+        let batch = batch_to_batch_records_py(py, results)?;
         Ok(Py::new(py, batch)?.into_any())
     }
 
@@ -1186,7 +1186,11 @@ impl PyClient {
         debug!("batch_write: records_count={}", records.len());
         let client = self.get_client()?.clone();
         let args = client_common::prepare_batch_write_args(
-            py, records, policy, retry, &self.connection_info,
+            py,
+            records,
+            policy,
+            retry,
+            &self.connection_info,
         )?;
         let limiter = self.limiter.clone();
         let results = py.detach(|| {
@@ -1206,7 +1210,7 @@ impl PyClient {
                 .await
             })
         })?;
-        let batch = batch_to_batch_records_py(py, &results)?;
+        let batch = batch_to_batch_records_py(py, results)?;
         Ok(Py::new(py, batch)?.into_any())
     }
 
@@ -1238,9 +1242,14 @@ impl PyClient {
         let parent_ctx = client_common::extract_parent_context(py);
         let conn_info = self.connection_info.clone();
 
-        let records = crate::numpy_support::numpy_to_records(
+        let raw_records = crate::numpy_support::numpy_to_records(
             py, data, _dtype, namespace, set_name, key_field,
         )?;
+        let write_policy = crate::policy::batch_policy::parse_batch_write_policy(policy)?;
+        let records: Vec<_> = raw_records
+            .into_iter()
+            .map(|(k, b)| (k, b, write_policy.clone()))
+            .collect();
 
         let ns = namespace.to_string();
         let set = set_name.to_string();
@@ -1264,7 +1273,7 @@ impl PyClient {
             })
         })?;
 
-        let batch = batch_to_batch_records_py(py, &results)?;
+        let batch = batch_to_batch_records_py(py, results)?;
         Ok(Py::new(py, batch)?.into_any())
     }
 
@@ -1287,7 +1296,7 @@ impl PyClient {
                 client_ops::do_batch_remove(&client, &args).await
             })
         })?;
-        let batch = batch_to_batch_records_py(py, &results)?;
+        let batch = batch_to_batch_records_py(py, results)?;
         Ok(Py::new(py, batch)?.into_any())
     }
 }

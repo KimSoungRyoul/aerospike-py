@@ -290,17 +290,48 @@ fn compute_backoff_ms(attempt: u32, base_ms: u64, cap_ms: u64) -> u64 {
     rand::rng().random_range(0..=max_backoff)
 }
 
+/// Collect indices of batch records with retryable error codes into `out`.
+///
+/// Clears `out` first, then appends indices of records whose `result_code`
+/// is both non-Ok and retryable (timeout, device overload, key busy,
+/// server memory error, partition unavailable).
+fn collect_retryable_indices(results: &[BatchRecord], out: &mut Vec<usize>) {
+    out.clear();
+    out.extend(results.iter().enumerate().filter_map(|(i, br)| {
+        if let Some(rc) = &br.result_code {
+            if *rc != aerospike_core::ResultCode::Ok && is_retryable_result_code(rc) {
+                return Some(i);
+            }
+        }
+        None
+    }));
+}
+
 /// Write multiple records from pre-parsed (key, bins) pairs with optional retry.
 ///
 /// When `max_retries > 0`, failed records with retryable error codes are
 /// re-submitted in subsequent batch calls, up to `max_retries` attempts.
 /// A Full Jitter exponential backoff (`random_between(0, min(cap, base * 2^attempt))`)
 /// is applied between retries to avoid thundering-herd effects.
+///
+/// **Retry behavior notes:**
+/// - If a transport-level error occurs during a retry attempt, retries stop
+///   immediately and the function returns partial results. Records that were
+///   being retried retain their previous (failed) result codes.
+/// - The elapsed time guard prevents retries when `elapsed + backoff >= total_timeout`,
+///   but does not account for the actual batch operation time. Total wall-clock
+///   time may exceed `total_timeout` by up to one additional timeout window.
+/// - Callers should always check per-record `result_code` values regardless of
+///   the overall `Ok` return status.
 #[allow(clippy::too_many_arguments)]
 pub async fn do_batch_write(
     client: &AsClient,
     batch_policy: &aerospike_core::BatchPolicy,
-    records: &[(aerospike_core::Key, Vec<aerospike_core::Bin>)],
+    records: &[(
+        aerospike_core::Key,
+        Vec<aerospike_core::Bin>,
+        BatchWritePolicy,
+    )],
     ns: &str,
     set: &str,
     parent_ctx: client_common::ParentContext,
@@ -308,15 +339,37 @@ pub async fn do_batch_write(
     max_retries: u32,
     op_name: &str,
 ) -> PyResult<Vec<BatchRecord>> {
-    let write_policy = BatchWritePolicy::default();
+    // Fast path: no retry — build ops directly, no cache overhead
+    if max_retries == 0 {
+        let batch_ops: Vec<BatchOperation> = records
+            .iter()
+            .map(|(key, bins, write_policy)| {
+                let ops: Vec<aerospike_core::operations::Operation> =
+                    bins.iter().map(aerospike_core::operations::put).collect();
+                BatchOperation::write(write_policy, key.clone(), ops)
+            })
+            .collect();
+        return traced_op!(
+            op_name,
+            ns,
+            set,
+            parent_ctx,
+            conn_info,
+            client.batch(batch_policy, &batch_ops).await
+        );
+    }
 
-    // Build initial batch operations
+    // Retry path: pre-build ops once per record, reuse via clone on retry
+    let cached_ops: Vec<Vec<aerospike_core::operations::Operation>> = records
+        .iter()
+        .map(|(_, bins, _)| bins.iter().map(aerospike_core::operations::put).collect())
+        .collect();
+
     let batch_ops: Vec<BatchOperation> = records
         .iter()
-        .map(|(key, bins)| {
-            let ops: Vec<aerospike_core::operations::Operation> =
-                bins.iter().map(aerospike_core::operations::put).collect();
-            BatchOperation::write(&write_policy, key.clone(), ops)
+        .zip(cached_ops.iter())
+        .map(|((key, _, write_policy), ops)| {
+            BatchOperation::write(write_policy, key.clone(), ops.clone())
         })
         .collect();
 
@@ -330,25 +383,13 @@ pub async fn do_batch_write(
         client.batch(batch_policy, &batch_ops).await
     )?;
 
-    if max_retries == 0 {
-        return Ok(results);
-    }
-
     // Retry loop: only retry records with retryable error codes
+    let start = std::time::Instant::now();
+    let timeout_ms = batch_policy.base_policy.total_timeout as u64;
+    let mut retry_indices: Vec<usize> = Vec::new();
     for attempt in 0..max_retries {
         // Find indices of failed records that are retryable
-        let retry_indices: Vec<usize> = results
-            .iter()
-            .enumerate()
-            .filter_map(|(i, br)| {
-                if let Some(rc) = &br.result_code {
-                    if *rc != aerospike_core::ResultCode::Ok && is_retryable_result_code(rc) {
-                        return Some(i);
-                    }
-                }
-                None
-            })
-            .collect();
+        collect_retryable_indices(&results, &mut retry_indices);
 
         if retry_indices.is_empty() {
             log::debug!(
@@ -360,6 +401,21 @@ pub async fn do_batch_write(
 
         // Full Jitter backoff: random_between(0, min(500ms, 10ms * 2^attempt))
         let backoff_ms = compute_backoff_ms(attempt, 10, 500);
+
+        // Elapsed time guard: stop retries if remaining time is insufficient
+        if timeout_ms > 0 {
+            let elapsed_ms = start.elapsed().as_millis() as u64;
+            if elapsed_ms + backoff_ms >= timeout_ms {
+                log::warn!(
+                    "batch_write retry: elapsed {}ms + backoff {}ms >= timeout {}ms, stopping",
+                    elapsed_ms,
+                    backoff_ms,
+                    timeout_ms
+                );
+                break;
+            }
+        }
+
         log::info!(
             "batch_write retry: {} failed records, attempt {}/{}, backoff {}ms",
             retry_indices.len(),
@@ -369,14 +425,12 @@ pub async fn do_batch_write(
         );
         tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
 
-        // Build retry batch from failed records only
+        // Build retry batch from cached ops (avoids rebuilding from bins)
         let retry_ops: Vec<BatchOperation> = retry_indices
             .iter()
             .map(|&i| {
-                let (key, bins) = &records[i];
-                let ops: Vec<aerospike_core::operations::Operation> =
-                    bins.iter().map(aerospike_core::operations::put).collect();
-                BatchOperation::write(&write_policy, key.clone(), ops)
+                let (key, _, write_policy) = &records[i];
+                BatchOperation::write(write_policy, key.clone(), cached_ops[i].clone())
             })
             .collect();
 
@@ -409,10 +463,10 @@ pub async fn do_batch_write(
                 retry_results.len()
             );
         }
-        for (retry_pos, &original_idx) in retry_indices.iter().enumerate() {
-            if retry_pos < retry_results.len() {
-                results[original_idx] = retry_results[retry_pos].clone();
-            }
+        for (original_idx, retry_record) in
+            retry_indices.iter().copied().zip(retry_results.into_iter())
+        {
+            results[original_idx] = retry_record;
         }
     }
 
@@ -437,10 +491,7 @@ pub async fn do_info_all(
 
 /// Send an info command to a random node.
 pub async fn do_info_random_node(client: &AsClient, args: &InfoArgs) -> PyResult<String> {
-    let node = client
-        .cluster
-        .get_random_node()
-        .map_err(as_to_pyerr)?;
+    let node = client.cluster.get_random_node().map_err(as_to_pyerr)?;
     let map = node
         .info(&args.admin_policy, &[&args.command])
         .await
@@ -797,7 +848,10 @@ mod tests {
             let max_expected = std::cmp::min(10u64 * (1u64 << attempt), 500);
             for _ in 0..1000 {
                 let val = compute_backoff_ms(attempt, 10, 500);
-                assert!(val <= max_expected, "attempt={attempt}, val={val}, max={max_expected}");
+                assert!(
+                    val <= max_expected,
+                    "attempt={attempt}, val={val}, max={max_expected}"
+                );
             }
         }
     }
@@ -818,5 +872,96 @@ mod tests {
         assert!(val <= 500);
         let val = compute_backoff_ms(u32::MAX, 10, 500);
         assert!(val <= 500);
+    }
+
+    // ── collect_retryable_indices tests ────────────────────────────────────
+
+    /// Create a minimal `BatchRecord` for testing.
+    ///
+    /// `BatchRecord::new` is `pub(crate)` in `aerospike_core`, so we build
+    /// an instance by cloning a layout-compatible repr and overwriting the
+    /// public `result_code` field.  The private `has_write: bool` field is
+    /// irrelevant to `collect_retryable_indices`.
+    fn make_batch_record(result_code: Option<ResultCode>) -> BatchRecord {
+        /// Layout-compatible mirror used solely to construct test fixtures.
+        #[repr(C)]
+        struct BatchRecordMirror {
+            key: aerospike_core::Key,
+            record: Option<Record>,
+            result_code: Option<ResultCode>,
+            in_doubt: bool,
+            has_write: bool,
+        }
+
+        let mirror = BatchRecordMirror {
+            key: aerospike_core::Key::new("test", "demo", Value::from("k1".to_string())).unwrap(),
+            record: None,
+            result_code,
+            in_doubt: false,
+            has_write: false,
+        };
+        // SAFETY: `BatchRecordMirror` has the identical field types and order
+        // as `BatchRecord`. This is only used in unit tests.
+        unsafe { std::mem::transmute(mirror) }
+    }
+
+    #[test]
+    fn test_collect_retryable_indices_all_ok() {
+        let results = vec![
+            make_batch_record(Some(ResultCode::Ok)),
+            make_batch_record(Some(ResultCode::Ok)),
+            make_batch_record(None), // None means Ok
+        ];
+        let mut indices = Vec::new();
+        collect_retryable_indices(&results, &mut indices);
+        assert!(indices.is_empty());
+    }
+
+    #[test]
+    fn test_collect_retryable_indices_retryable_only() {
+        let results = vec![
+            make_batch_record(Some(ResultCode::Ok)),
+            make_batch_record(Some(ResultCode::Timeout)),
+            make_batch_record(Some(ResultCode::Ok)),
+            make_batch_record(Some(ResultCode::KeyBusy)),
+        ];
+        let mut indices = Vec::new();
+        collect_retryable_indices(&results, &mut indices);
+        assert_eq!(indices, vec![1, 3]);
+    }
+
+    #[test]
+    fn test_collect_retryable_indices_non_retryable_excluded() {
+        let results = vec![
+            make_batch_record(Some(ResultCode::KeyExistsError)),
+            make_batch_record(Some(ResultCode::RecordTooBig)),
+            make_batch_record(Some(ResultCode::Timeout)),
+        ];
+        let mut indices = Vec::new();
+        collect_retryable_indices(&results, &mut indices);
+        assert_eq!(indices, vec![2]); // Only Timeout is retryable
+    }
+
+    #[test]
+    fn test_collect_retryable_indices_mixed() {
+        let results = vec![
+            make_batch_record(Some(ResultCode::Ok)),             // ok
+            make_batch_record(Some(ResultCode::Timeout)),        // retryable
+            make_batch_record(Some(ResultCode::KeyExistsError)), // non-retryable
+            make_batch_record(Some(ResultCode::DeviceOverload)), // retryable
+            make_batch_record(None),                             // ok (None)
+            make_batch_record(Some(ResultCode::ServerMemError)), // retryable
+        ];
+        let mut indices = Vec::new();
+        collect_retryable_indices(&results, &mut indices);
+        assert_eq!(indices, vec![1, 3, 5]);
+    }
+
+    #[test]
+    fn test_collect_retryable_indices_clears_output() {
+        let results = vec![make_batch_record(Some(ResultCode::Timeout))];
+        let mut indices = vec![99, 100]; // pre-populated
+        collect_retryable_indices(&results, &mut indices);
+        assert_eq!(indices, vec![0]); // old values cleared
     }
 }

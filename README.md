@@ -2,13 +2,13 @@
 
 [![PyPI](https://img.shields.io/pypi/v/aerospike-py.svg)](https://pypi.org/project/aerospike-py/)
 [![Downloads](https://img.shields.io/pypi/dm/aerospike-py.svg)](https://pypi.org/project/aerospike-py/)
-[![CI](https://github.com/KimSoungRyoul/aerospike-py/actions/workflows/ci.yaml/badge.svg)](https://github.com/KimSoungRyoul/aerospike-py/actions/workflows/ci.yaml)
+[![CI](https://github.com/aerospike-ce-ecosystem/aerospike-py/actions/workflows/ci.yaml/badge.svg)](https://github.com/aerospike-ce-ecosystem/aerospike-py/actions/workflows/ci.yaml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org/)
 [![PyO3](https://img.shields.io/badge/PyO3-0.28-green.svg)](https://pyo3.rs/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-Aerospike Python Client built with PyO3 + Rust. Drop-in replacement for [aerospike-client-python](https://github.com/aerospike/aerospike-client-python) powered by the [Aerospike Rust Client v2](https://github.com/aerospike/aerospike-client-rust).
+High-performance Aerospike Python Client built with PyO3 + Rust, powered by the [Aerospike Rust Client v2](https://github.com/aerospike/aerospike-client-rust).
 
 ## Features
 
@@ -17,24 +17,7 @@ Aerospike Python Client built with PyO3 + Rust. Drop-in replacement for [aerospi
 - CDT List/Map Operations, Expression Filters
 - Full type stubs (`.pyi`) for IDE autocompletion
 
-> API details: [docs/api/](docs/api/) | Usage guides: [docs/guides/](docs/guides/)
-
-## Drop-in Replacement
-
-Just change the import — your existing code works as-is:
-
-```diff
-- import aerospike
-+ import aerospike_py as aerospike
-
-config = {'hosts': [('localhost', 3000)]}
-client = aerospike.client(config).connect()
-
-key = ('test', 'demo', 'key1')
-client.put(key, {'name': 'Alice', 'age': 30})
-_, _, bins = client.get(key)
-client.close()
-```
+> [Documentation](https://aerospike-ce-ecosystem.github.io/aerospike-py/) — API reference, usage guides, integration examples
 
 ## Quickstart
 
@@ -97,100 +80,47 @@ Benchmark: **5,000 ops x 100 rounds**, Aerospike CE (Docker), Apple M4 Pro
 | put (ms)  |             0.140 |             0.139 |              0.058 | **2.4x faster** |
 | get (ms)  |             0.141 |             0.141 |              0.063 | **2.2x faster** |
 
-> **Sync** performance is on par with the official C client.
-> **Async** throughput is **2.2-2.4x faster** — the official C client has no Python async/await support ([attempted and removed](https://github.com/aerospike/aerospike-client-python/pull/462)).
-
-### Why async matters
-
-The official C client supports async I/O internally (libev/libuv/libevent), but its Python bindings **cannot expose `async/await`** — the attempt was abandoned and removed in [PR #462](https://github.com/aerospike/aerospike-client-python/pull/462). The only concurrency option with the C client is `asyncio.run_in_executor()` (thread pool, not true async).
-
-aerospike-py provides **native `async/await`** via Tokio + PyO3, enabling `asyncio.gather()` for true concurrent I/O — critical for modern Python web frameworks (FastAPI, Starlette, etc).
-
-> Full benchmark details: [benchmark/](benchmark/) | Run: `make run-benchmark`
-
-## For AI Agents
-
-This project supports the [llms.txt](https://llmstxt.org/) standard. Use the following prompt to give your AI agent full context about aerospike-py:
-
-```
-Fetch and read https://kimsoungryoul.github.io/aerospike-py/llms-full.txt to understand the aerospike-py Python client API, then write code based on that documentation.
-```
-
-- [`llms.txt`](https://kimsoungryoul.github.io/aerospike-py/llms.txt) — Documentation index for AI agents
-- [`llms-full.txt`](https://kimsoungryoul.github.io/aerospike-py/llms-full.txt) — Complete documentation in a single file
+> **Sync** is on par with the official C client. **Async** is **2.2-2.4x faster** via native Tokio async/await.
 
 ## Claude Code Skills & Agents
 
-이 프로젝트는 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 자동화가 설정되어 있습니다.
+This project has [Claude Code](https://docs.anthropic.com/en/docs/claude-code) automation configured.
 
-### Ecosystem Plugin 설치
+### Ecosystem Plugin Installation
 
-[aerospike-ce-ecosystem-plugins](https://github.com/aerospike-ce-ecosystem/aerospike-ce-ecosystem-plugins)를 설치하면 aerospike-py API 레퍼런스, 배포 가이드 등 ecosystem 전체 스킬을 사용할 수 있습니다.
+Install [aerospike-ce-ecosystem-plugins](https://github.com/aerospike-ce-ecosystem/aerospike-ce-ecosystem-plugins) to access the full ecosystem skill set, including the aerospike-py API reference and deployment guides.
+
+**From GitHub (recommended)**
+
+Add the repository as a marketplace, then install:
 
 ```bash
+# Step 1: Add as marketplace
 claude plugin marketplace add aerospike-ce-ecosystem/aerospike-ce-ecosystem-plugins
+
+# Step 2: Install the plugin
 claude plugin install aerospike-ce-ecosystem
 ```
 
-### Skills
+**Project-scoped install**
 
-`/skill-name`으로 호출합니다.
+To install only for the current project:
 
-| Skill | 명령어 | 설명 |
-|-------|--------|------|
-| **run-tests** | `/run-tests [type]` | 빌드 → Aerospike 서버 보장 → 테스트 실행 (unit/integration/concurrency/compat/all/matrix) |
-| **release-check** | `/release-check` | 릴리스 전 검증 (lint, unit test, pyright, type stub 일관성, 버전 확인) |
-| **bench-compare** | `/bench-compare` | aerospike-py vs 공식 C 클라이언트 벤치마크 비교 |
-| **test-sample-fastapi** | `/test-sample-fastapi` | aerospike-py 빌드 → sample-fastapi 설치 → 통합 테스트 실행 |
-| **new-api** | `/new-api [method] [desc]` | 새 Client/AsyncClient API 메서드 추가 가이드 (Rust → Python 래퍼 → 타입 스텁 → 테스트) |
+```bash
+claude plugin marketplace add aerospike-ce-ecosystem/aerospike-ce-ecosystem-plugins
+claude plugin install aerospike-ce-ecosystem -s project
+```
 
-### Subagents
+**Verify installation**
 
-코드 리뷰/분석 시 자동으로 활용됩니다.
-
-| Agent | 설명 |
-|-------|------|
-| **pyo3-reviewer** | PyO3 바인딩 리뷰 (GIL 관리, 타입 변환, async 안전성, 메모리 안전성) |
-| **type-stub-sync** | `__init__.pyi` stub과 Rust 소스 간 일관성 검증 |
-
-### Hooks
-
-파일 편집 시 자동 실행됩니다.
-
-| Hook | 트리거 | 동작 |
-|------|--------|------|
-| Python auto-format | `.py` 편집 후 | `ruff format` + `ruff check --fix` |
-| Rust auto-format | `.rs` 편집 후 | `cargo fmt` |
-| Binary/lock 보호 | `.so`, `.dylib`, `.whl`, `uv.lock` 편집 시 | 편집 차단 |
+```bash
+claude plugin list
+# Should show: aerospike-ce-ecosystem@aerospike-ce-ecosystem ✔ enabled
+```
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, running tests, and making changes.
-
-## Code stats
-
-[tokei](https://github.com/XAMPPRocky/tokei) 기반. 설정: `tokei.toml` + `.tokeignore`
-
-```bash
-# 순수 구현 코드만 (tests, examples, benchmark 제외)
-tokei
-
-# 테스트 + 벤치마크 + 샘플 포함
-tokei src rust/src tests benchmark examples
-```
-
-순수 구현 코드 (tests, examples, benchmark 제외):
-```
-$ tokei -C
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Language                                 Files        Lines         Code     Comments       Blanks
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Rust                                        34         9729         8581          260          888
- Python                                      25         8116         6754          238         1124
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Total                                       59        18511        15335         1067         2109
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
 
 ## License
 
