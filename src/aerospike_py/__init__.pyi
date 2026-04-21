@@ -642,7 +642,8 @@ class Client:
                 ``total_timeout`` by up to one additional timeout window.
 
         Returns:
-            A list of ``BatchRecord`` NamedTuples with per-record result codes.
+            A ``BatchWriteResult`` with per-record result codes in
+            ``batch_records: list[BatchRecord]``.
 
         Example:
             ```python
@@ -695,7 +696,8 @@ class Client:
                 ``total_timeout`` by up to one additional timeout window.
 
         Returns:
-            A ``BatchRecords`` containing per-record result codes.
+            A ``BatchWriteResult`` containing per-record result codes in
+            ``batch_records: list[BatchRecord]``.
 
         Example:
             ```python
@@ -733,7 +735,8 @@ class Client:
             policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
 
         Returns:
-            A list of ``BatchRecord`` NamedTuples with per-record result codes.
+            A ``BatchWriteResult`` with per-record result codes in
+            ``batch_records: list[BatchRecord]``.
             Each ``BatchRecord`` also includes an ``in_doubt`` flag
             (see :meth:`batch_write` for details).
 
@@ -763,7 +766,8 @@ class Client:
             policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
 
         Returns:
-            A list of ``BatchRecord`` NamedTuples with per-record result codes.
+            A ``BatchWriteResult`` with per-record result codes in
+            ``batch_records: list[BatchRecord]``.
             Each ``BatchRecord`` also includes an ``in_doubt`` flag
             (see :meth:`batch_write` for details).
 
@@ -1643,7 +1647,8 @@ class AsyncClient:
                 ``total_timeout`` by up to one additional timeout window.
 
         Returns:
-            A list of ``BatchRecord`` NamedTuples with per-record result codes.
+            A ``BatchWriteResult`` with per-record result codes in
+            ``batch_records: list[BatchRecord]``.
 
         Example:
             ```python
@@ -1694,7 +1699,8 @@ class AsyncClient:
                 ``total_timeout`` by up to one additional timeout window.
 
         Returns:
-            A ``BatchRecords`` containing per-record result codes.
+            A ``BatchWriteResult`` containing per-record result codes in
+            ``batch_records: list[BatchRecord]``.
 
         Example:
             ```python
@@ -1732,7 +1738,8 @@ class AsyncClient:
             policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
 
         Returns:
-            A list of ``BatchRecord`` NamedTuples with per-record result codes.
+            A ``BatchWriteResult`` with per-record result codes in
+            ``batch_records: list[BatchRecord]``.
             Each ``BatchRecord`` also includes an ``in_doubt`` flag
             (see :meth:`batch_write` for details).
 
@@ -1762,7 +1769,8 @@ class AsyncClient:
             policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
 
         Returns:
-            A list of ``BatchRecord`` NamedTuples with per-record result codes.
+            A ``BatchWriteResult`` with per-record result codes in
+            ``batch_records: list[BatchRecord]``.
             Each ``BatchRecord`` also includes an ``in_doubt`` flag
             (see :meth:`batch_write` for details).
 
