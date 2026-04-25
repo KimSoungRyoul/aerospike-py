@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import aerospike_py
 from app.exception_handlers import _STATUS_MAP
+
+import aerospike_py
 
 NS, SET = "test", "exc_test"
 
