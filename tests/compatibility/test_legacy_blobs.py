@@ -43,9 +43,7 @@ SET_NAME = "compat_legacy_blobs"
 class TestNormalReadRegression:
     """Sanity check: panic-catch wrapping is transparent on normal reads."""
 
-    def test_get_native_record_unaffected(
-        self, rust_client, official_client, cleanup
-    ):
+    def test_get_native_record_unaffected(self, rust_client, official_client, cleanup):
         # If the panic-catch wrapping accidentally swallowed normal errors
         # or altered the success path, this test would fail.
         key = (NS, SET_NAME, "native_record")
@@ -56,9 +54,7 @@ class TestNormalReadRegression:
         assert bins["age"] == 30
         assert bins["tags"] == ["a", "b"]
 
-    def test_record_not_found_still_raises_recordnotfound(
-        self, rust_client, cleanup
-    ):
+    def test_record_not_found_still_raises_recordnotfound(self, rust_client, cleanup):
         # The wrapping must let aerospike-core's structured errors through
         # untouched — only panics get rewritten to RustPanicError.
         key = (NS, SET_NAME, "definitely_missing_xyz")
