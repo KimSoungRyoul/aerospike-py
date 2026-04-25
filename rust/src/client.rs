@@ -780,7 +780,9 @@ impl PyClient {
             "apply UDF: ns={} set={} module={} function={}",
             a.key.namespace, a.key.set_name, a.module, a.function
         );
-        let result = py.detach(|| RUNTIME.block_on(client_ops::do_apply(&client, &a)))?;
+        let result = catch_panic_sync("Client.apply", || {
+            py.detach(|| RUNTIME.block_on(client_ops::do_apply(&client, &a)))
+        })?;
         match result {
             Some(val) => value_to_py(py, &val),
             None => Ok(py.None()),
