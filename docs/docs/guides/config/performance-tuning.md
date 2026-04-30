@@ -127,6 +127,7 @@ connection pool.
 
 ```python
 config = {
+    # "aerospike" = service name in your Podman/compose file; use 127.0.0.1 for local dev
     "hosts": [("aerospike", 3000)],
     "max_concurrent_operations": 64,    # at most 64 in-flight ops
     "operation_queue_timeout_ms": 5000, # raise BackpressureError after 5s
@@ -161,6 +162,7 @@ serve.
 import aerospike_py
 
 client = aerospike_py.AsyncClient({
+    # "aerospike" = service name in your Podman/compose file; use 127.0.0.1 for local dev
     "hosts": [("aerospike", 3000)],
     "max_concurrent_operations": 64,    # caps in-flight ops
     "operation_queue_timeout_ms": 5000,
