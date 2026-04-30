@@ -7,6 +7,7 @@ Claude Code Plugin::
 """
 
 import contextlib
+from collections.abc import Sequence
 from typing import Any, Callable, Optional, Union, overload
 
 import numpy as np
@@ -21,7 +22,10 @@ from aerospike_py.types import (
     AdminPolicy as AdminPolicy,
     AerospikeKey as AerospikeKey,
     AerospikeRecord as AerospikeRecord,
+    BatchDeleteMeta as BatchDeleteMeta,
+    BatchDeletePolicy as BatchDeletePolicy,
     BatchPolicy as BatchPolicy,
+    BatchReadPolicy as BatchReadPolicy,
     BatchRecord as BatchRecord,
     BatchRecords as BatchRecords,
     BatchWriteResult as BatchWriteResult,
@@ -787,14 +791,22 @@ class Client:
 
     def batch_remove(
         self,
-        keys: list[Key],
+        keys: Sequence[Key | tuple[Key, "BatchDeleteMeta"]],
         policy: Optional[dict[str, Any]] = None,
     ) -> BatchWriteResult:
         """Delete multiple records in a single batch call.
 
         Args:
-            keys: List of ``(namespace, set, primary_key)`` tuples.
-            policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
+            keys: Either a list of bare ``Key`` tuples (back-compat) or a
+                list mixing bare keys and ``(key, meta)`` pairs where
+                ``meta`` is a [`BatchDeleteMeta`](types.md#batchdeletemeta)
+                dict for per-record overrides (CAS deletes, durable_delete
+                per record, etc.).
+            policy: Optional dict combining a transport-level
+                [`BatchPolicy`](types.md#batchpolicy) with batch-level
+                [`BatchDeletePolicy`](types.md#batchdeletepolicy) defaults:
+                ``gen``, ``key`` (send_key), ``commit_level``,
+                ``durable_delete``, ``filter_expression``.
 
         Returns:
             A ``BatchWriteResult`` with per-record result codes in
@@ -804,9 +816,16 @@ class Client:
 
         Example:
             ```python
+            # Legacy: bare keys.
             keys = [("test", "demo", f"user_{i}") for i in range(10)]
             results = client.batch_remove(keys)
-            failed = [br for br in results.batch_records if br.result != 0]
+
+            # CAS delete: only delete user_1 if generation is still 3.
+            _, meta, _ = client.get(("test", "demo", "user_1"))
+            results = client.batch_remove([
+                (("test", "demo", "user_1"), {"gen": meta.gen}),
+                ("test", "demo", "user_2"),  # bare key, no CAS
+            ])
             ```
         """
         ...
@@ -1787,27 +1806,14 @@ class AsyncClient:
 
     async def batch_remove(
         self,
-        keys: list[Key],
+        keys: Sequence[Key | tuple[Key, "BatchDeleteMeta"]],
         policy: Optional[dict[str, Any]] = None,
     ) -> BatchWriteResult:
-        """Delete multiple records in a single batch call.
+        """Delete multiple records in a single batch call (async).
 
-        Args:
-            keys: List of ``(namespace, set, primary_key)`` tuples.
-            policy: Optional [`BatchPolicy`](types.md#batchpolicy) dict.
-
-        Returns:
-            A ``BatchWriteResult`` with per-record result codes in
-            ``batch_records: list[BatchRecord]``.
-            Each ``BatchRecord`` also includes an ``in_doubt`` flag
-            (see :meth:`batch_write` for details).
-
-        Example:
-            ```python
-            keys = [("test", "demo", f"user_{i}") for i in range(10)]
-            results = await client.batch_remove(keys)
-            failed = [br for br in results.batch_records if br.result != 0]
-            ```
+        See :meth:`Client.batch_remove` for full description. Per-record
+        ``BatchDeleteMeta`` overrides are supported via ``(key, meta)``
+        tuples in the keys list.
         """
         ...
 
@@ -2097,6 +2103,54 @@ class AsyncClient:
         write_quota: int = 0,
         policy: Optional[dict[str, Any]] = None,
     ) -> None: ...
+
+class PartitionFilter:
+    """Opaque handle representing a subset of partitions for query/scan.
+
+    Construct via :func:`partition_filter_all`, :func:`partition_filter_by_id`,
+    or :func:`partition_filter_by_range`. Pass to
+    ``Query.results(policy={"partition_filter": handle})`` to scope a query
+    to a subset of partitions.
+
+    The underlying ``aerospike_core::PartitionFilter`` holds mutable state
+    (``Arc<Mutex<Vec<PartitionStatus>>>``). Reusing the same handle across
+    two ``results()`` calls would cause the second call to resume from where
+    the first left off; aerospike-py mitigates this by cloning the inner
+    filter at parse time, isolating the user's handle.
+    """
+
+    def __repr__(self) -> str: ...
+
+def partition_filter_all() -> PartitionFilter:
+    """Build a :class:`PartitionFilter` covering all 4096 partitions.
+
+    Equivalent to omitting ``partition_filter`` from the policy entirely.
+    """
+    ...
+
+def partition_filter_by_id(partition_id: int) -> PartitionFilter:
+    """Build a :class:`PartitionFilter` targeting a single partition.
+
+    Args:
+        partition_id: Partition index in ``[0, 4095]``.
+
+    Raises:
+        ValueError: If ``partition_id`` is outside the valid range.
+    """
+    ...
+
+def partition_filter_by_range(begin: int, count: int) -> PartitionFilter:
+    """Build a :class:`PartitionFilter` targeting ``count`` partitions from ``begin``.
+
+    Args:
+        begin: First partition (``[0, 4095]``).
+        count: Number of partitions; ``begin + count <= 4096``. ``0`` is allowed
+            and yields an empty filter.
+
+    Raises:
+        ValueError: If the range overflows 4096.
+    """
+    ...
 
 class Query:
     """Secondary index query object.
@@ -2535,6 +2589,23 @@ POLICY_COMMIT_LEVEL_MASTER: int
 # Policy Read Mode AP
 POLICY_READ_MODE_AP_ONE: int
 POLICY_READ_MODE_AP_ALL: int
+
+# Read Touch TTL Percent (server v8+)
+# Special values for ``read_touch_ttl_percent``:
+#   - ``READ_TOUCH_TTL_PERCENT_SERVER_DEFAULT`` (0): use server config
+#   - ``READ_TOUCH_TTL_PERCENT_DONT_RESET`` (-1): never reset TTL on read
+#   - integer 1..100: reset TTL on read when within N% of original write TTL
+READ_TOUCH_TTL_PERCENT_SERVER_DEFAULT: int
+READ_TOUCH_TTL_PERCENT_DONT_RESET: int
+
+# Query Duration (hint to the server about expected query duration).
+# Use ``QUERY_DURATION_LONG`` (default) for long-running queries with many
+# records per node, ``QUERY_DURATION_SHORT`` for low-latency queries with
+# few records, and ``QUERY_DURATION_LONG_RELAX_AP`` for long queries that
+# can relax AP consistency.
+QUERY_DURATION_LONG: int
+QUERY_DURATION_SHORT: int
+QUERY_DURATION_LONG_RELAX_AP: int
 
 # TTL
 TTL_NAMESPACE_DEFAULT: int

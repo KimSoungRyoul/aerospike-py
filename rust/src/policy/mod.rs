@@ -6,11 +6,16 @@ pub mod read_policy;
 pub mod write_policy;
 
 use aerospike_core::expressions::Expression;
-use aerospike_core::{CommitLevel, GenerationPolicy, RecordExistsAction};
+use aerospike_core::policy::{QueryDuration, Replica};
+use aerospike_core::query::PartitionFilter;
+use aerospike_core::{
+    CommitLevel, ConsistencyLevel, GenerationPolicy, ReadTouchTTL, RecordExistsAction,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use crate::expressions::{is_expression, py_to_expression};
+use crate::types::partition_filter::PyPartitionFilter;
 
 /// Extract simple typed fields from a Python dict into a policy struct.
 ///
@@ -74,5 +79,140 @@ pub(crate) fn parse_commit_level(val: i32) -> CommitLevel {
         0 => CommitLevel::CommitAll,
         1 => CommitLevel::CommitMaster,
         _ => CommitLevel::CommitAll,
+    }
+}
+
+/// Map a `POLICY_REPLICA_*` integer constant to a [`Replica`].
+///
+/// Unknown values fall back to [`Replica::Sequence`] (the aerospike-core default),
+/// mirroring the lenient behavior of `parse_record_exists_action`.
+pub(crate) fn parse_replica(val: i32) -> Replica {
+    match val {
+        0 => Replica::Master,
+        1 => Replica::Sequence,
+        2 => Replica::PreferRack,
+        _ => Replica::Sequence,
+    }
+}
+
+/// Map a `POLICY_READ_MODE_AP_*` integer constant to a [`ConsistencyLevel`].
+///
+/// Unknown values fall back to [`ConsistencyLevel::ConsistencyOne`].
+pub(crate) fn parse_consistency_level(val: i32) -> ConsistencyLevel {
+    match val {
+        0 => ConsistencyLevel::ConsistencyOne,
+        1 => ConsistencyLevel::ConsistencyAll,
+        _ => ConsistencyLevel::ConsistencyOne,
+    }
+}
+
+/// Map a `QUERY_DURATION_*` integer constant to a [`QueryDuration`].
+///
+/// Unknown values fall back to [`QueryDuration::Long`].
+pub(crate) fn parse_query_duration(val: i32) -> QueryDuration {
+    match val {
+        0 => QueryDuration::Long,
+        1 => QueryDuration::Short,
+        2 => QueryDuration::LongRelaxAP,
+        _ => QueryDuration::Long,
+    }
+}
+
+/// Extract a `PartitionFilter` from a query policy dict.
+///
+/// Returns `Ok(None)` when the key is absent. Returns `Err` when the value is
+/// present but not a `PyPartitionFilter` instance. We clone the inner filter
+/// so the user's handle is not mutated by query execution.
+pub fn parse_partition_filter(dict: &Bound<'_, PyDict>) -> PyResult<Option<PartitionFilter>> {
+    let Some(val) = dict.get_item("partition_filter")? else {
+        return Ok(None);
+    };
+    let pf: PyPartitionFilter = val.extract().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(
+            "policy['partition_filter'] must be a PartitionFilter instance \
+             returned by aerospike_py.partition_filter_all/_by_id/_by_range",
+        )
+    })?;
+    Ok(Some(pf.clone_inner()))
+}
+
+/// Convert a `read_touch_ttl_percent` integer to a [`ReadTouchTTL`] enum.
+///
+/// Special values: `0` = `ServerDefault`, `-1` = `DontReset`, `1..=100` = `Percent(N)`.
+/// Out-of-range values return an `InvalidArgError` rather than silently clamping —
+/// this surfaces config typos early and matches the strictness of `parse_ttl`.
+pub(crate) fn parse_read_touch_ttl(val: i64) -> PyResult<ReadTouchTTL> {
+    match val {
+        0 => Ok(ReadTouchTTL::ServerDefault),
+        -1 => Ok(ReadTouchTTL::DontReset),
+        n if (1..=100).contains(&n) => Ok(ReadTouchTTL::Percent(n as u8)),
+        n => Err(crate::errors::InvalidArgError::new_err(format!(
+            "read_touch_ttl_percent out of range: {n} (valid: 0=ServerDefault, -1=DontReset, 1-100=Percent)"
+        ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_replica_known_values() {
+        assert_eq!(parse_replica(0), Replica::Master);
+        assert_eq!(parse_replica(1), Replica::Sequence);
+        assert_eq!(parse_replica(2), Replica::PreferRack);
+    }
+
+    #[test]
+    fn parse_replica_unknown_falls_back_to_sequence() {
+        assert_eq!(parse_replica(99), Replica::Sequence);
+        assert_eq!(parse_replica(-1), Replica::Sequence);
+    }
+
+    #[test]
+    fn parse_consistency_level_known_and_unknown() {
+        assert_eq!(parse_consistency_level(0), ConsistencyLevel::ConsistencyOne);
+        assert_eq!(parse_consistency_level(1), ConsistencyLevel::ConsistencyAll);
+        assert_eq!(
+            parse_consistency_level(99),
+            ConsistencyLevel::ConsistencyOne
+        );
+    }
+
+    #[test]
+    fn parse_read_touch_ttl_special_values() {
+        assert!(matches!(
+            parse_read_touch_ttl(0).unwrap(),
+            ReadTouchTTL::ServerDefault
+        ));
+        assert!(matches!(
+            parse_read_touch_ttl(-1).unwrap(),
+            ReadTouchTTL::DontReset
+        ));
+        assert!(matches!(
+            parse_read_touch_ttl(50).unwrap(),
+            ReadTouchTTL::Percent(50)
+        ));
+        assert!(matches!(
+            parse_read_touch_ttl(1).unwrap(),
+            ReadTouchTTL::Percent(1)
+        ));
+        assert!(matches!(
+            parse_read_touch_ttl(100).unwrap(),
+            ReadTouchTTL::Percent(100)
+        ));
+    }
+
+    #[test]
+    fn parse_read_touch_ttl_rejects_out_of_range() {
+        Python::initialize();
+        Python::attach(|py| {
+            let err = parse_read_touch_ttl(-100).expect_err("must reject -100");
+            assert!(err.is_instance_of::<crate::errors::InvalidArgError>(py));
+            let err = parse_read_touch_ttl(200).expect_err("must reject 200");
+            assert!(err.is_instance_of::<crate::errors::InvalidArgError>(py));
+            let err = parse_read_touch_ttl(101).expect_err("boundary 101 must reject");
+            assert!(err.is_instance_of::<crate::errors::InvalidArgError>(py));
+        });
     }
 }
