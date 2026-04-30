@@ -495,8 +495,10 @@ mod tests {
     fn apply_record_meta_for_delete_per_record_wins_over_base() {
         Python::initialize();
         Python::attach(|py| {
-            let mut base = aerospike_core::BatchDeletePolicy::default();
-            base.send_key = false;
+            let base = aerospike_core::BatchDeletePolicy {
+                send_key: false,
+                ..Default::default()
+            };
             let meta = build_dict(py, |d| {
                 d.set_item("key", 1i32).unwrap();
                 d.set_item("durable_delete", true).unwrap();
