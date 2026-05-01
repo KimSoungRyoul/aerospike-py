@@ -212,8 +212,8 @@ class BatchUDFMeta(TypedDict, total=False):
 
     Single flat dict (matching :class:`BatchDeleteMeta`) that can both
     override the UDF call shape (``module``/``function``/``args``) and
-    the policy fields (``ttl``/``commit_level``/``key``/``durable_delete``/
-    ``filter_expression``) for a specific record.
+    the policy fields (``ttl``/``commit_level``/``key``/``durable_delete``)
+    for a specific record.
     """
 
     module: str
@@ -223,7 +223,6 @@ class BatchUDFMeta(TypedDict, total=False):
     commit_level: int
     key: int
     durable_delete: bool
-    filter_expression: Any
 
 
 class AdminPolicy(TypedDict, total=False):

@@ -849,8 +849,7 @@ class Client:
                 [`BatchUDFMeta`](types.md#batchudfmeta) flat dict that
                 may override the UDF call shape (``module``, ``function``,
                 ``args``) and policy fields (``ttl``, ``commit_level``,
-                ``key``, ``durable_delete``, ``filter_expression``) for
-                that specific record.
+                ``key``, ``durable_delete``) for that specific record.
             module: Default UDF module to invoke when a record has no
                 per-record ``module`` override.
             function: Default UDF function name.
