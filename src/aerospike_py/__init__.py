@@ -12,6 +12,13 @@ from aerospike_py.types import BatchRecord, BatchRecords, BatchWriteResult, User
 
 # Import all exceptions from native module
 from aerospike_py._aerospike import (  # noqa: F401
+    PartitionFilter,
+    partition_filter_all,
+    partition_filter_by_id,
+    partition_filter_by_range,
+)
+
+from aerospike_py._aerospike import (  # noqa: F401
     AerospikeError,
     ClientError,
     ClusterError,
@@ -67,6 +74,13 @@ from aerospike_py._aerospike import (  # noqa: F401
     # Policy Read Mode AP
     POLICY_READ_MODE_AP_ONE,
     POLICY_READ_MODE_AP_ALL,
+    # Read Touch TTL Percent (server v8+)
+    READ_TOUCH_TTL_PERCENT_SERVER_DEFAULT,
+    READ_TOUCH_TTL_PERCENT_DONT_RESET,
+    # Query Duration
+    QUERY_DURATION_LONG,
+    QUERY_DURATION_SHORT,
+    QUERY_DURATION_LONG_RELAX_AP,
     # TTL Constants
     TTL_NAMESPACE_DEFAULT,
     TTL_NEVER_EXPIRE,
@@ -251,6 +265,9 @@ from aerospike_py.types import (  # noqa: F401
     ReadPolicy,
     WritePolicy,
     BatchPolicy,
+    BatchReadPolicy,
+    BatchDeletePolicy,
+    BatchDeleteMeta,
     AdminPolicy,
     QueryPolicy,
     WriteMeta,
@@ -377,6 +394,9 @@ __all__ = [
     "ReadPolicy",
     "WritePolicy",
     "BatchPolicy",
+    "BatchReadPolicy",
+    "BatchDeletePolicy",
+    "BatchDeleteMeta",
     "AdminPolicy",
     "QueryPolicy",
     "WriteMeta",
@@ -448,6 +468,18 @@ __all__ = [
     # Policy Read Mode AP
     "POLICY_READ_MODE_AP_ONE",
     "POLICY_READ_MODE_AP_ALL",
+    # Read Touch TTL Percent (server v8+)
+    "READ_TOUCH_TTL_PERCENT_SERVER_DEFAULT",
+    "READ_TOUCH_TTL_PERCENT_DONT_RESET",
+    # Query Duration
+    "QUERY_DURATION_LONG",
+    "QUERY_DURATION_SHORT",
+    "QUERY_DURATION_LONG_RELAX_AP",
+    # PartitionFilter helpers
+    "PartitionFilter",
+    "partition_filter_all",
+    "partition_filter_by_id",
+    "partition_filter_by_range",
     # TTL Constants
     "TTL_NAMESPACE_DEFAULT",
     "TTL_NEVER_EXPIRE",

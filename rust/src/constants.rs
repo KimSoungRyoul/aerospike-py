@@ -145,6 +145,15 @@ pub fn register_constants(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("POLICY_READ_MODE_AP_ONE", 0)?;
     m.add("POLICY_READ_MODE_AP_ALL", 1)?;
 
+    // --- Read Touch TTL Percent (server v8+) ---
+    m.add("READ_TOUCH_TTL_PERCENT_SERVER_DEFAULT", 0)?;
+    m.add("READ_TOUCH_TTL_PERCENT_DONT_RESET", -1)?;
+
+    // --- Query Duration ---
+    m.add("QUERY_DURATION_LONG", 0)?;
+    m.add("QUERY_DURATION_SHORT", 1)?;
+    m.add("QUERY_DURATION_LONG_RELAX_AP", 2)?;
+
     // --- TTL Constants ---
     m.add("TTL_NAMESPACE_DEFAULT", 0)?;
     m.add("TTL_NEVER_EXPIRE", -1)?;

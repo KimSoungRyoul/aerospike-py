@@ -104,9 +104,9 @@ class ReadPolicy(TypedDict, total=False):
     max_retries: int
     sleep_between_retries: int
     filter_expression: Any
-    expressions: Any
     replica: int
     read_mode_ap: int
+    read_touch_ttl_percent: int
 
 
 class WritePolicy(TypedDict, total=False):
@@ -120,7 +120,8 @@ class WritePolicy(TypedDict, total=False):
     commit_level: int
     ttl: int
     filter_expression: Any
-    expressions: Any
+    read_mode_ap: int
+    read_touch_ttl_percent: int
 
 
 class BatchPolicy(TypedDict, total=False):
@@ -131,6 +132,9 @@ class BatchPolicy(TypedDict, total=False):
     allow_inline: bool
     allow_inline_ssd: bool
     respond_all_keys: bool
+    replica: int
+    read_mode_ap: int
+    read_touch_ttl_percent: int
     # Batch-level write defaults — used by ``batch_write``. Per-record
     # ``WriteMeta`` entries override these fields (matching the existing
     # ``ttl``/``gen`` precedence rule).
@@ -140,6 +144,46 @@ class BatchPolicy(TypedDict, total=False):
     commit_level: int
     durable_delete: bool
     ttl: int
+
+
+class BatchReadPolicy(TypedDict, total=False):
+    """Per-record batch read policy.
+
+    Used by ``batch_read``. The transport-level options (timeouts, retries,
+    ``allow_inline*``, ``respond_all_keys``) live on :class:`BatchPolicy`.
+    """
+
+    read_touch_ttl_percent: int
+    filter_expression: Any
+
+
+class BatchDeletePolicy(TypedDict, total=False):
+    """Per-record batch delete policy.
+
+    Used by ``batch_remove``. Transport-level options live on :class:`BatchPolicy`.
+    Per-record overrides go in :class:`BatchDeleteMeta`.
+    """
+
+    gen: int  # POLICY_GEN_*
+    key: int  # POLICY_KEY_DIGEST | POLICY_KEY_SEND
+    commit_level: int  # POLICY_COMMIT_LEVEL_*
+    durable_delete: bool
+    filter_expression: Any
+
+
+class BatchDeleteMeta(TypedDict, total=False):
+    """Per-record meta for a single ``batch_remove`` entry.
+
+    Mirrors :class:`WriteMeta` but for delete-relevant fields only.
+    Setting ``gen`` enables CAS-style "delete only if generation matches"
+    semantics — the server returns a per-record GENERATION_ERROR if the
+    record's generation has advanced.
+    """
+
+    gen: int
+    key: int
+    commit_level: int
+    durable_delete: bool
 
 
 class AdminPolicy(TypedDict, total=False):
@@ -153,7 +197,15 @@ class QueryPolicy(TypedDict, total=False):
     max_records: int
     records_per_second: int
     filter_expression: Any
-    expressions: Any
+    replica: int
+    read_mode_ap: int
+    read_touch_ttl_percent: int
+    max_concurrent_nodes: int
+    record_queue_size: int
+    expected_duration: int
+    include_bin_data: bool
+    # PartitionFilter handle returned by partition_filter_all / _by_id / _by_range
+    partition_filter: Any
 
 
 class WriteMeta(TypedDict, total=False):
