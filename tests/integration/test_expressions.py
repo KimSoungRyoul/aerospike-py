@@ -1,5 +1,7 @@
 """Integration tests for expression filters (requires Aerospike server)."""
 
+import uuid
+
 import pytest
 
 import aerospike_py
@@ -255,12 +257,16 @@ class TestPkRegexFilterScan:
     not use a primary index. Records must be written with POLICY_KEY_SEND.
     """
 
-    SET = "expr_pk_regex"
+    @pytest.fixture(autouse=True)
+    def _isolated_set(self):
+        # Unique set per test invocation so stragglers from a previously
+        # interrupted run cannot contaminate empty-result assertions.
+        self.set_name = f"expr_pk_regex_{uuid.uuid4().hex[:12]}"
 
     def _seed(self, client, cleanup, user_keys, *, send_key):
         policy = {"key": aerospike_py.POLICY_KEY_SEND} if send_key else None
         for uk in user_keys:
-            key = ("test", self.SET, uk)
+            key = ("test", self.set_name, uk)
             cleanup.append(key)
             client.put(key, {"v": uk}, policy=policy)
 
@@ -273,13 +279,19 @@ class TestPkRegexFilterScan:
             aerospike_py.REGEX_NONE,
             exp.key(exp.EXP_TYPE_STRING),
         )
-        results = client.query("test", self.SET).results(policy={"filter_expression": expr})
+        results = client.query("test", self.set_name).results(policy={"filter_expression": expr})
 
         matched = sorted(r.key.user_key for r in results if r.key is not None)
         assert matched == ["aaa001", "aaa002"]
 
     def test_pk_regex_filter_scan_no_send_key(self, client, cleanup):
-        """Records without POLICY_KEY_SEND have no stored user key — no match."""
+        """Records without POLICY_KEY_SEND have no stored user key — no match.
+
+        The empty result confirms that records in the set were *evaluated* by
+        the filter and rejected (because they lack a stored user key), not
+        that the scan failed. Compare with test_pk_regex_filter_scan_no_match,
+        where records are stored with sendKey but the pattern excludes them.
+        """
         self._seed(client, cleanup, ["aaa001", "aaa002"], send_key=False)
 
         expr = exp.regex_compare(
@@ -287,7 +299,20 @@ class TestPkRegexFilterScan:
             aerospike_py.REGEX_NONE,
             exp.key(exp.EXP_TYPE_STRING),
         )
-        results = client.query("test", self.SET).results(policy={"filter_expression": expr})
+        results = client.query("test", self.set_name).results(policy={"filter_expression": expr})
+
+        assert results == []
+
+    def test_pk_regex_filter_scan_no_match(self, client, cleanup):
+        """Pattern that matches nothing returns an empty list (filter ran)."""
+        self._seed(client, cleanup, ["aaa001", "bbb001"], send_key=True)
+
+        expr = exp.regex_compare(
+            "^zzz.*",
+            aerospike_py.REGEX_NONE,
+            exp.key(exp.EXP_TYPE_STRING),
+        )
+        results = client.query("test", self.set_name).results(policy={"filter_expression": expr})
 
         assert results == []
 
@@ -300,7 +325,7 @@ class TestPkRegexFilterScan:
             aerospike_py.REGEX_ICASE,
             exp.key(exp.EXP_TYPE_STRING),
         )
-        results = client.query("test", self.SET).results(policy={"filter_expression": expr})
+        results = client.query("test", self.set_name).results(policy={"filter_expression": expr})
 
         matched = sorted(r.key.user_key for r in results if r.key is not None)
         assert matched == ["AAA001", "aaa002"]
