@@ -244,3 +244,63 @@ class TestExpressionMetadata:
         )
         _, _, bins = client.get(key, policy={"filter_expression": expr})
         assert bins["age"] == 25
+
+
+class TestPkRegexFilterScan:
+    """PK regex filter scan via exp.regex_compare(..., exp.key(EXP_TYPE_STRING)).
+
+    Equivalent to Java client's
+    ``Exp.regexCompare(pattern, RegexFlag.NONE, Exp.key(Exp.Type.STRING))``.
+    Performs a full set scan with server-side filtering on the user key — does
+    not use a primary index. Records must be written with POLICY_KEY_SEND.
+    """
+
+    SET = "expr_pk_regex"
+
+    def _seed(self, client, cleanup, user_keys, *, send_key):
+        policy = {"key": aerospike_py.POLICY_KEY_SEND} if send_key else None
+        for uk in user_keys:
+            key = ("test", self.SET, uk)
+            cleanup.append(key)
+            client.put(key, {"v": uk}, policy=policy)
+
+    def test_pk_regex_filter_scan(self, client, cleanup):
+        """^aaa.* matches only records whose user key starts with 'aaa'."""
+        self._seed(client, cleanup, ["aaa001", "aaa002", "bbb001"], send_key=True)
+
+        expr = exp.regex_compare(
+            "^aaa.*",
+            aerospike_py.REGEX_NONE,
+            exp.key(exp.EXP_TYPE_STRING),
+        )
+        results = client.query("test", self.SET).results(policy={"filter_expression": expr})
+
+        matched = sorted(r.key.user_key for r in results if r.key is not None)
+        assert matched == ["aaa001", "aaa002"]
+
+    def test_pk_regex_filter_scan_no_send_key(self, client, cleanup):
+        """Records without POLICY_KEY_SEND have no stored user key — no match."""
+        self._seed(client, cleanup, ["aaa001", "aaa002"], send_key=False)
+
+        expr = exp.regex_compare(
+            "^aaa.*",
+            aerospike_py.REGEX_NONE,
+            exp.key(exp.EXP_TYPE_STRING),
+        )
+        results = client.query("test", self.SET).results(policy={"filter_expression": expr})
+
+        assert results == []
+
+    def test_pk_regex_filter_scan_icase(self, client, cleanup):
+        """REGEX_ICASE matches user keys regardless of case."""
+        self._seed(client, cleanup, ["AAA001", "aaa002", "bbb001"], send_key=True)
+
+        expr = exp.regex_compare(
+            "^aaa.*",
+            aerospike_py.REGEX_ICASE,
+            exp.key(exp.EXP_TYPE_STRING),
+        )
+        results = client.query("test", self.SET).results(policy={"filter_expression": expr})
+
+        matched = sorted(r.key.user_key for r in results if r.key is not None)
+        assert matched == ["AAA001", "aaa002"]

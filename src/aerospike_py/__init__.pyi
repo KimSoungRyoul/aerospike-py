@@ -2629,6 +2629,13 @@ HLL_WRITE_UPDATE_ONLY: int
 HLL_WRITE_NO_FAIL: int
 HLL_WRITE_ALLOW_FOLD: int
 
+# Regex Flags (for exp.regex_compare)
+REGEX_NONE: int
+REGEX_EXTENDED: int
+REGEX_ICASE: int
+REGEX_NOSUB: int
+REGEX_NEWLINE: int
+
 # Privilege Codes
 PRIV_READ: int
 PRIV_WRITE: int
